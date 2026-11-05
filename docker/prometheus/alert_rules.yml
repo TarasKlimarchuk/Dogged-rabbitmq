@@ -1,0 +1,45 @@
+groups:
+  - name: circuit-breaker
+    rules:
+      # != 0 (not == 2): with traffic a dead dependency cycles open -> half-open -> open,
+      # which would keep resetting a `== 2` condition.
+      - alert: CircuitBreakerNotClosed
+        expr: circuit_breaker_state != 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker {{ $labels.policy }} not closed on {{ $labels.job }}"
+          description: "{{ $labels.job }} / {{ $labels.policy }} has been open or half-open for 5 minutes."
+
+      - alert: CircuitBreakerRejectingCalls
+        expr: |
+          circuit_breaker_state != 0
+          and on(job, policy)
+          rate(circuit_breaker_rejections_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker {{ $labels.policy }} is rejecting real calls on {{ $labels.job }}"
+          description: "{{ $labels.job }} / {{ $labels.policy }} has not closed for 5 minutes and is rejecting requests."
+
+  - name: failures
+    rules:
+      - alert: DependencyFailureRateHigh
+        expr: sum by (job, policy) (rate(resilience_failures_total{kind!="client"}[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} / {{ $labels.policy }} failing more than once every 2s"
+          description: "Failed attempts against the dependency have exceeded 0.5/s for 5 minutes."
+
+      - alert: PostgresConnectionsNearLimit
+        expr: sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres is using over 80% of max_connections"
+          description: "New connections will start failing once max_connections is reached."

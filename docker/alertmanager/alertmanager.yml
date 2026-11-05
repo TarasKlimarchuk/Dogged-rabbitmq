@@ -1,0 +1,16 @@
+route:
+  receiver: telegram
+  group_by: [alertname, job, policy]
+
+receivers:
+  - name: telegram
+    telegram_configs:
+      - bot_token_file: /run/secrets/telegram_bot_token
+        chat_id_file: /run/secrets/telegram_chat_id
+        parse_mode: HTML
+
+# A critical alert already says everything the warning for the same breaker does.
+inhibit_rules:
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: [job, policy]

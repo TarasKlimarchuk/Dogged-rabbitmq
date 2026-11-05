@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "monorepo": true,
+  "root": "apps/terminal",
+  "compilerOptions": {
+    "webpack": false,
+    "tsConfigPath": "apps/terminal/tsconfig.app.json"
+  },
+  "sourceRoot": "apps/terminal/src",
+  "projects": {
+    "terminal": {
+      "type": "application",
+      "root": "apps/terminal",
+      "entryFile": "main",
+      "sourceRoot": "apps/terminal/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/terminal/tsconfig.app.json",
+        "builder": "rspack"
+      }
+    },
+    "orders-management": {
+      "type": "application",
+      "root": "apps/orders-management",
+      "entryFile": "main",
+      "sourceRoot": "apps/orders-management/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/orders-management/tsconfig.app.json",
+        "builder": "rspack"
+      }
+    },
+    "warehouse": {
+      "type": "application",
+      "root": "apps/warehouse",
+      "entryFile": "main",
+      "sourceRoot": "apps/warehouse/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/warehouse/tsconfig.app.json",
+        "builder": "rspack"
+      }
+    },
+    "resilience": {
+      "type": "library",
+      "root": "libs/resilience",
+      "entryFile": "index",
+      "sourceRoot": "libs/resilience/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/resilience/tsconfig.lib.json"
+      }
+    },
+    "chaos": {
+      "type": "library",
+      "root": "libs/chaos",
+      "entryFile": "index",
+      "sourceRoot": "libs/chaos/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/chaos/tsconfig.lib.json"
+      }
+    },
+    "metrics": {
+      "type": "library",
+      "root": "libs/metrics",
+      "entryFile": "index",
+      "sourceRoot": "libs/metrics/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/metrics/tsconfig.lib.json"
+      }
+    },
+    "contracts": {
+      "type": "library",
+      "root": "libs/contracts",
+      "entryFile": "index",
+      "sourceRoot": "libs/contracts/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/contracts/tsconfig.lib.json"
+      }
+    },
+    "order-placement-consumer": {
+      "type": "application",
+      "root": "apps/order-placement-consumer",
+      "entryFile": "main",
+      "sourceRoot": "apps/order-placement-consumer/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/order-placement-consumer/tsconfig.app.json",
+        "builder": "rspack"
+      }
+    },
+    "utils": {
+      "type": "library",
+      "root": "libs/utils",
+      "entryFile": "index",
+      "sourceRoot": "libs/utils/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/utils/tsconfig.lib.json"
+      }
+    },
+    "orders-db": {
+      "type": "library",
+      "root": "libs/orders-db",
+      "entryFile": "index",
+      "sourceRoot": "libs/orders-db/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/orders-db/tsconfig.lib.json"
+      }
+    }
+  }
+}

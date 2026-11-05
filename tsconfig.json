@@ -1,0 +1,63 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolvePackageJsonExports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "types": [
+      "vitest/globals",
+      "node"
+    ],
+    "paths": {
+      "@app/chaos": [
+        "./libs/chaos/src/index.ts"
+      ],
+      "@app/chaos/*": [
+        "./libs/chaos/src/*"
+      ],
+      "@app/contracts": [
+        "./libs/contracts/src/index.ts"
+      ],
+      "@app/contracts/*": [
+        "./libs/contracts/src/*"
+      ],
+      "@app/metrics": [
+        "./libs/metrics/src/index.ts"
+      ],
+      "@app/metrics/*": [
+        "./libs/metrics/src/*"
+      ],
+      "@app/resilience": [
+        "./libs/resilience/src/index.ts"
+      ],
+      "@app/resilience/*": [
+        "./libs/resilience/src/*"
+      ],
+      "@app/utils": [
+        "./libs/utils/src/index.ts"
+      ],
+      "@app/utils/*": [
+        "./libs/utils/src/*"
+      ],
+      "@app/orders-db": [
+        "./libs/orders-db/src/index.ts"
+      ],
+      "@app/orders-db/*": [
+        "./libs/orders-db/src/*"
+      ]
+    }
+  }
+}

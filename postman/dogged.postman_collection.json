@@ -1,0 +1,525 @@
+{
+  "info": {
+    "name": "Dogged",
+    "description": "Terminal / Orders Management / Warehouse endpoints for the Release It! study project. Import this file into Postman via File > Import.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "terminalUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "ordersManagementUrl",
+      "value": "http://localhost:3001"
+    },
+    {
+      "key": "warehouseUrl",
+      "value": "http://localhost:3002"
+    }
+  ],
+  "item": [
+    {
+      "name": "Terminal",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{terminalUrl}}/",
+              "host": [
+                "{{terminalUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get menu",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{terminalUrl}}/menu",
+              "host": [
+                "{{terminalUrl}}"
+              ],
+              "path": [
+                "menu"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Place order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{terminalUrl}}/orders",
+              "host": [
+                "{{terminalUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{$guid}}\",\n  \"items\": [\n    { \"name\": \"Hot Dog\", \"quantity\": 2 }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders Management",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{ordersManagementUrl}}/",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Menu - list",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{ordersManagementUrl}}/menu",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "menu"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Menu - create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ordersManagementUrl}}/menu",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "menu"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chili Dog\",\n  \"price\": 2.99\n}"
+            }
+          }
+        },
+        {
+          "name": "Menu - get one",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{ordersManagementUrl}}/menu/:id",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "menu",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Menu - delete",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{ordersManagementUrl}}/menu/:id",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "menu",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Place order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ordersManagementUrl}}/orders",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{$guid}}\",\n  \"terminalId\": \"terminal-a\",\n  \"items\": [\n    { \"name\": \"Hot Dog\", \"quantity\": 2 }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Stock - restock callback (called by warehouse)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ordersManagementUrl}}/stock/restock-callback",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "stock",
+                "restock-callback"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"terminalId\": \"terminal-a\",\n  \"itemName\": \"Hot Dog\",\n  \"quantity\": 50\n}"
+            }
+          }
+        },
+        {
+          "name": "Chaos - get state",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{ordersManagementUrl}}/admin/chaos",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "admin",
+                "chaos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Chaos - enable (error mode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ordersManagementUrl}}/admin/chaos",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "admin",
+                "chaos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"mode\": \"error\",\n  \"failureRate\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Chaos - enable (delay mode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ordersManagementUrl}}/admin/chaos",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "admin",
+                "chaos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"mode\": \"delay\",\n  \"delayMs\": 5000\n}"
+            }
+          }
+        },
+        {
+          "name": "Chaos - disable",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ordersManagementUrl}}/admin/chaos",
+              "host": [
+                "{{ordersManagementUrl}}"
+              ],
+              "path": [
+                "admin",
+                "chaos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Warehouse",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{warehouseUrl}}/",
+              "host": [
+                "{{warehouseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Request restock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{warehouseUrl}}/restock",
+              "host": [
+                "{{warehouseUrl}}"
+              ],
+              "path": [
+                "restock"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"terminalId\": \"terminal-a\",\n  \"itemName\": \"Hot Dog\",\n  \"upToCapacity\": 50\n}"
+            }
+          }
+        },
+        {
+          "name": "List deliveries (all)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{warehouseUrl}}/deliveries",
+              "host": [
+                "{{warehouseUrl}}"
+              ],
+              "path": [
+                "deliveries"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List deliveries (pending)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{warehouseUrl}}/deliveries?status=pending",
+              "host": [
+                "{{warehouseUrl}}"
+              ],
+              "path": [
+                "deliveries"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List deliveries (delivered)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{warehouseUrl}}/deliveries?status=delivered",
+              "host": [
+                "{{warehouseUrl}}"
+              ],
+              "path": [
+                "deliveries"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "delivered"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Confirm delivery (simulate courier)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{warehouseUrl}}/deliveries/:id/confirm",
+              "host": [
+                "{{warehouseUrl}}"
+              ],
+              "path": [
+                "deliveries",
+                ":id",
+                "confirm"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Chaos - get state",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{warehouseUrl}}/admin/chaos",
+              "host": [
+                "{{warehouseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "chaos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Chaos - enable (error mode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{warehouseUrl}}/admin/chaos",
+              "host": [
+                "{{warehouseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "chaos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"mode\": \"error\",\n  \"failureRate\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Chaos - disable",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{warehouseUrl}}/admin/chaos",
+              "host": [
+                "{{warehouseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "chaos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,173 @@
+services:
+  terminal:
+    build:
+      context: .
+      dockerfile: apps/terminal/Dockerfile
+    environment:
+      PORT: ${TERMINAL_PORT}
+      TERMINAL_ID: ${TERMINAL_ID}
+      ORDERS_MANAGEMENT_URL: ${ORDERS_MANAGEMENT_URL}
+      MENU_CACHE_DB_PATH: ${MENU_CACHE_DB_PATH}
+    ports:
+      - "3000:3000"
+    networks:
+      - orders-management
+  orders-management:
+    build:
+      context: .
+      dockerfile: apps/orders-management/Dockerfile
+    environment:
+      PORT: ${ORDERS_MANAGEMENT_PORT}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ORDERS_DB_NAME: ${ORDERS_DB_NAME}
+      KNOWN_TERMINAL_IDS: ${KNOWN_TERMINAL_IDS}
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks: [orders-management, warehouse, postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
+  order-placement-consumer:
+    build:
+      context: .
+      dockerfile: apps/order-placement-consumer/Dockerfile
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ORDERS_DB_NAME: ${ORDERS_DB_NAME}
+      WAREHOUSE_URL: ${WAREHOUSE_URL}
+    deploy:
+      replicas: 3
+    networks: [orders-management, warehouse, postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      orders-management:
+        condition: service_started
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    networks:
+      - postgres
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [postgres, monitoring]
+  warehouse:
+    build:
+      context: .
+      dockerfile: apps/warehouse/Dockerfile
+    environment:
+      PORT: ${WAREHOUSE_PORT}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      WAREHOUSE_DB_NAME: ${WAREHOUSE_DB_NAME}
+      ORDERS_MANAGEMENT_URL: ${ORDERS_MANAGEMENT_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3002:3002"
+    networks: [warehouse, postgres]
+  prometheus:
+    image: prom/prometheus:v3.13.4
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    networks: [orders-management, warehouse, monitoring]
+  rabbitMQ:
+    image: rabbitmq:4.4.0-management-alpine
+    ports:
+      - "127.0.0.1:15672:15672"
+      - "127.0.0.1:5672:5672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_logs:/var/log/rabbitmq
+    networks: [orders-management]
+  loki:
+    image: grafana/loki:3.5.12
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - loki_data:/loki
+      - ./docker/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+    networks:
+      - monitoring
+  alloy:
+    image: grafana/alloy:v1.10.0
+    command: run --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+    volumes:
+      - alloy_data:/var/lib/alloy/data
+      - ./docker/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - monitoring
+  grafana:
+    image: grafana/grafana:13.0.11-slim
+    ports:
+      - 127.0.0.1:9000:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - monitoring
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    secrets:
+      - telegram_bot_token
+      - telegram_chat_id
+    networks:
+      - monitoring
+networks:
+  orders-management:
+  warehouse:
+  postgres:
+  monitoring:
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alloy_data:
+  rabbitmq_data:
+  rabbitmq_logs:
+
+secrets:
+  telegram_bot_token:
+    environment: TELEGRAM_BOT_TOKEN
+  telegram_chat_id:
+    environment: TELEGRAM_CHAT_ID

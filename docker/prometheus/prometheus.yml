@@ -1,0 +1,33 @@
+global:
+  # how often Prometheus pulls GET /metrics from every target
+  scrape_interval: 15s
+
+# Point Prometheus to the Alertmanager container
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+rule_files:
+  - ./alert_rules.yml
+
+# Targets are addressed by docker compose service name + the container port
+# (not the host-published one): Prometheus reaches them over the docker networks.
+scrape_configs:
+  - job_name: terminal
+    static_configs:
+      - targets: ['terminal:3000']
+
+  - job_name: orders-management
+    static_configs:
+      - targets: ['orders-management:3001']
+
+  - job_name: warehouse
+    static_configs:
+      - targets: ['warehouse:3002']
+
+  # Postgres' own counters (pg_stat_database_deadlocks, ...), per database
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']

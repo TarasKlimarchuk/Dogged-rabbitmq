@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.build.json",
+  "compilerOptions": {
+    "outDir": "../../dist/apps/terminal",
+    "rootDir": "src"
+  },
+  "references": [{ "path": "../../libs/resilience/tsconfig.lib.json" }]
+}
