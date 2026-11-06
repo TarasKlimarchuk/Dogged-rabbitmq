@@ -5,7 +5,7 @@ discovery.docker "containers" {
   // Only this compose project, not every container on the machine
   filter {
     name   = "label"
-    values = ["com.docker.compose.project=study"]
+    values = ["com.docker.compose.project=study-rabbitmq"]
   }
 }
 

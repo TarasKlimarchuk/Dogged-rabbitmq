@@ -42,12 +42,14 @@ services:
       ORDERS_DB_NAME: ${ORDERS_DB_NAME}
       WAREHOUSE_URL: ${WAREHOUSE_URL}
     deploy:
-      replicas: 3
+      replicas: 2
     networks: [orders-management, warehouse, postgres]
     depends_on:
       postgres:
         condition: service_healthy
       orders-management:
+        condition: service_started
+      rabbitMQ:
         condition: service_started
   postgres:
     image: postgres:16-alpine

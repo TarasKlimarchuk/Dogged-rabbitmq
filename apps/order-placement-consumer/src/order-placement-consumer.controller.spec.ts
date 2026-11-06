@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import type { RmqContext } from '@nestjs/microservices';
-import { ORDERS_MAX_DELIVERIES } from '@app/contracts';
+import { ORDERS_DELIVERY_LIMIT, ORDERS_MAX_ATTEMPTS } from '@app/contracts';
 import { OrderPlacementConsumerController } from './order-placement-consumer.controller.js';
 import type { OrderPlacementConsumerService } from './order-placement-consumer.service.js';
 
@@ -15,7 +15,7 @@ function setup(
   handle: ReturnType<typeof vi.fn>,
   headers: Record<string, unknown> = {},
 ) {
-  const channel = { ack: vi.fn(), nack: vi.fn() };
+  const channel = { ack: vi.fn(), nack: vi.fn(), reject: vi.fn() };
   const rawMessage = { properties: { headers } };
   const ctx = {
     getChannelRef: () => channel,
@@ -86,9 +86,9 @@ describe('OrderPlacementConsumerController', () => {
 
     await controller.handleOrderPlaced(validPayload, ctx);
 
-    expect(channel.nack).toHaveBeenCalledWith(rawMessage, false, true);
+    expect(channel.reject).toHaveBeenCalledWith(rawMessage, true);
     expect(Logger.prototype.warn).toHaveBeenCalledWith(
-      expect.stringContaining(`attempt 1/${ORDERS_MAX_DELIVERIES}`),
+      expect.stringContaining(`attempt 1/${ORDERS_MAX_ATTEMPTS}`),
     );
   });
 
@@ -101,14 +101,14 @@ describe('OrderPlacementConsumerController', () => {
     await controller.handleOrderPlaced(validPayload, ctx);
 
     expect(Logger.prototype.warn).toHaveBeenCalledWith(
-      expect.stringContaining(`attempt 3/${ORDERS_MAX_DELIVERIES}`),
+      expect.stringContaining(`attempt 3/${ORDERS_MAX_ATTEMPTS}`),
     );
   });
 
   it('logs an error on the final attempt, still leaving the dead-lettering to RabbitMQ', async () => {
     const { controller, channel, rawMessage, ctx } = setup(
       vi.fn().mockRejectedValue(new Error('connection refused')),
-      { 'x-delivery-count': ORDERS_MAX_DELIVERIES - 1 },
+      { 'x-delivery-count': ORDERS_DELIVERY_LIMIT },
     );
 
     await controller.handleOrderPlaced(validPayload, ctx);
@@ -116,6 +116,6 @@ describe('OrderPlacementConsumerController', () => {
     expect(Logger.prototype.error).toHaveBeenCalledWith(
       expect.stringContaining('will move it to the DLQ'),
     );
-    expect(channel.nack).toHaveBeenCalledWith(rawMessage, false, true);
+    expect(channel.reject).toHaveBeenCalledWith(rawMessage, true);
   });
 });

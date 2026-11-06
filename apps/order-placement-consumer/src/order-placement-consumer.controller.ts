@@ -3,7 +3,7 @@ import { OrderPlacementConsumerService } from './order-placement-consumer.servic
 import { Ctx, EventPattern, Payload, RmqContext } from '@nestjs/microservices';
 import {
   ORDER_PATTERNS,
-  ORDERS_MAX_DELIVERIES,
+  ORDERS_MAX_ATTEMPTS,
   PlaceOrderMessage,
 } from '@app/contracts';
 import { assertNever, formatErrors } from '@app/utils';
@@ -13,13 +13,11 @@ import { validate } from 'class-validator';
 @Controller()
 export class OrderPlacementConsumerController {
   private readonly logger = new Logger(OrderPlacementConsumerController.name);
+
   constructor(private readonly service: OrderPlacementConsumerService) {}
 
   @EventPattern<string>(ORDER_PATTERNS.PLACE)
-  async handleOrderPlaced(
-    @Payload() payload: unknown,
-    @Ctx() ctx: RmqContext,
-  ) {
+  async handleOrderPlaced(@Payload() payload: unknown, @Ctx() ctx: RmqContext) {
     const channel = ctx.getChannelRef();
     const originalMsg = ctx.getMessage();
 
@@ -40,7 +38,9 @@ export class OrderPlacementConsumerController {
 
       switch (out.kind) {
         case 'placed':
-          this.logger.log(`order placed, ${key} inventoryIssue=${out.inventoryIssue}`);
+          this.logger.log(
+            `order placed, ${key} inventoryIssue=${out.inventoryIssue}`,
+          );
           channel.ack(originalMsg);
           break;
         case 'duplicate':
@@ -49,27 +49,27 @@ export class OrderPlacementConsumerController {
           break;
         case 'rejected':
           // no requeue = dead letter: goes straight to the DLQ
-          this.logger.warn(`order rejected, moved to DLQ, ${key}: ${out.reason}`);
+          this.logger.warn(
+            `order rejected, moved to DLQ, ${key}: ${out.reason}`,
+          );
           channel.nack(originalMsg, false, false);
           break;
         default:
           assertNever(out);
       }
     } catch (error) {
-      // Requeue: RabbitMQ counts the delivery, and once it reaches
-      // ORDERS_MAX_DELIVERIES it dead-letters the message to the DLQ.
       const attempt = deliveryAttempt(originalMsg);
       const reason = (error as Error).message;
-      if (attempt >= ORDERS_MAX_DELIVERIES) {
+      if (attempt >= ORDERS_MAX_ATTEMPTS) {
         this.logger.error(
-          `order failed on final attempt ${attempt}/${ORDERS_MAX_DELIVERIES}, RabbitMQ will move it to the DLQ, ${key}: ${reason}`,
+          `order failed on final attempt ${attempt}/${ORDERS_MAX_ATTEMPTS}, RabbitMQ will move it to the DLQ, ${key}: ${reason}`,
         );
       } else {
         this.logger.warn(
-          `order failed (attempt ${attempt}/${ORDERS_MAX_DELIVERIES}), requeueing, ${key}: ${reason}`,
+          `order failed (attempt ${attempt}/${ORDERS_MAX_ATTEMPTS}), requeueing, ${key}: ${reason}`,
         );
       }
-      channel.nack(originalMsg, false, true);
+      channel.reject(originalMsg, true);
     }
   }
 }
@@ -79,6 +79,8 @@ export class OrderPlacementConsumerController {
 function deliveryAttempt(message: {
   properties?: { headers?: Record<string, unknown> };
 }): number {
-  const previous = Number(message.properties?.headers?.['x-delivery-count'] ?? 0);
+  const previous = Number(
+    message.properties?.headers?.['x-delivery-count'] ?? 0,
+  );
   return (Number.isFinite(previous) ? previous : 0) + 1;
 }
