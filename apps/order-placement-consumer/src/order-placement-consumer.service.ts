@@ -1,8 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PlaceOrderMessage } from '@app/contracts';
+import { PlaceOrderMessage } from '@app/contracts/orders';
 import { isUniqueViolation, Order } from '@app/orders-db';
-import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { MenuService } from './menu/menu.service.js';
 import { StockService } from './stock/stock.service.js';
 
@@ -25,8 +24,6 @@ export class OrderPlacementConsumerService {
 
   constructor(
     private readonly dataSource: DataSource,
-    @InjectRepository(Order)
-    private readonly orders: Repository<Order>,
     private readonly stock: StockService,
     private readonly menu: MenuService,
   ) {}
@@ -44,7 +41,7 @@ export class OrderPlacementConsumerService {
     }
 
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      const result = await this.dataSource.transaction(async (manager) => {
         await manager.insert(
           Order,
           manager.create(Order, {
@@ -71,11 +68,15 @@ export class OrderPlacementConsumerService {
         }
 
         return {
-          kind: 'placed',
+          kind: 'placed' as const,
           orderId: dto.idempotencyKey,
           inventoryIssue,
         };
       });
+
+      await this.stock.requestRestockIfNeeded(dto.terminalId, dto.items);
+
+      return result;
     } catch (error) {
       if (error instanceof OrderRejected) {
         return { kind: 'rejected', reason: error.reason };

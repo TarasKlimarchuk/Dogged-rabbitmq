@@ -1,13 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import { EntityManager, Repository } from 'typeorm';
-import { firstValueFrom } from 'rxjs';
-import { createRetryTimeoutBreakerPolicy, isRetryableHttpError } from '@app/resilience';
+import { createRetryTimeoutBreakerPolicy } from '@app/resilience';
 import { ResilienceMetrics } from '@app/metrics';
-import { TerminalStock } from '@app/orders-db';
 import type { OrderItem } from '@app/orders-db';
+import { TerminalStock } from '@app/orders-db';
+import { ClientProxy } from '@nestjs/microservices';
+import { lastValueFrom } from 'rxjs';
 
 const DEFAULT_CAPACITY = 50;
 const REORDER_THRESHOLD_RATIO = 0.3;
@@ -25,8 +24,7 @@ interface DecrementRow {
 }
 
 type DecrementResult =
-  | { kind: 'decremented'; row: DecrementRow }
-  | { kind: 'missing-stock' };
+  { kind: 'decremented'; row: DecrementRow } | { kind: 'missing-stock' };
 
 @Injectable()
 export class StockService {
@@ -36,12 +34,11 @@ export class StockService {
   constructor(
     @InjectRepository(TerminalStock)
     private readonly stock: Repository<TerminalStock>,
-    private readonly http: HttpService,
-    private readonly config: ConfigService,
+    @Inject('REPLENISHMENT_SERVICE')
+    private readonly replenishmentConsumer: ClientProxy,
     metrics: ResilienceMetrics,
   ) {
     this.policy = createRetryTimeoutBreakerPolicy({
-      isRetryable: isRetryableHttpError,
       ...metrics.breakerHooks('warehouse-restock'),
     });
   }
@@ -67,9 +64,6 @@ export class StockService {
       if (result.row.wasInsufficient) {
         inventoryIssue = true;
       }
-      // if (row.quantity < row.capacity * REORDER_THRESHOLD_RATIO) {
-      //   await this.requestRestockIfNeeded(terminalId, item.name);
-      // } move it todo
     }
 
     return { kind: 'reserved', inventoryIssue };
@@ -84,18 +78,19 @@ export class StockService {
   ): Promise<DecrementResult> {
     const rows = await manager.query<DecrementRow[]>(
       `
-        WITH before AS (
-          SELECT quantity FROM terminal_stock
-          WHERE "terminalId" = $1 AND "itemName" = $2
-        ),
-        updated AS (
-          UPDATE terminal_stock
-          SET quantity = GREATEST(quantity - $3, 0)
-          WHERE "terminalId" = $1 AND "itemName" = $2
-          RETURNING quantity, capacity
+        WITH before AS (SELECT quantity
+                        FROM terminal_stock
+                        WHERE "terminalId" = $1
+                          AND "itemName" = $2),
+             updated AS (
+        UPDATE terminal_stock
+        SET quantity = GREATEST(quantity - $3, 0)
+        WHERE "terminalId" = $1
+          AND "itemName" = $2 RETURNING quantity, capacity
         )
         SELECT updated.quantity, updated.capacity, (before.quantity < $3) AS "wasInsufficient"
-        FROM updated, before
+        FROM updated,
+             before
       `,
       [terminalId, itemName, requested],
     );
@@ -104,48 +99,74 @@ export class StockService {
     return row ? { kind: 'decremented', row } : { kind: 'missing-stock' };
   }
 
-  // Public so it can be called after the order transaction commits (see the
-  // commented-out call in reserve()). Not called from anywhere yet.
+  // Best-effort, called after the order transaction commits. Never throws:
+  // a failure here must not requeue an order that is already placed (the
+  // redelivery would be treated as a duplicate and the restock lost anyway).
   async requestRestockIfNeeded(
     terminalId: string,
-    itemName: string,
+    items: OrderItem[],
   ): Promise<void> {
-    const claim = await this.stock.update(
-      { terminalId, itemName, restockPending: false },
-      { restockPending: true },
-    );
-    if (!claim.affected) {
-      return;
-    }
-
-    this.policy
-      .execute(() => this.sendRestockRequest(terminalId, itemName))
-      .then(() => {
-        this.logger.log(`restock requested terminalId=${terminalId} item=${itemName}`);
-      })
-      .catch(async (error) => {
+    for (const item of items) {
+      try {
+        await this.requestRestockForItem(terminalId, item.name);
+      } catch (error) {
+        // per item, so one failure doesn't skip the remaining items
         this.logger.warn(
-          `restock request failed terminalId=${terminalId} item=${itemName}: ${(error as Error).message}`,
+          `restock check failed terminalId=${terminalId} item=${item.name}: ${(error as Error).message}`,
         );
-        // release the claim so the next low-stock check can try again
-        await this.stock.update({ terminalId, itemName }, { restockPending: false });
-      });
+      }
+    }
   }
 
-  private async sendRestockRequest(
+  private async requestRestockForItem(
     terminalId: string,
     itemName: string,
   ): Promise<void> {
-    const baseUrl = this.config.get<string>(
-      'WAREHOUSE_URL',
-      'http://localhost:3002',
-    );
-    await firstValueFrom(
-      this.http.post(`${baseUrl}/restock`, {
+    // Threshold check + claim in one atomic UPDATE: only matches when stock
+    // is low AND no restock is already pending for this terminal/item.
+    const claim = await this.stock
+      .createQueryBuilder()
+      .update()
+      .set({ restockPending: true })
+      .where('"terminalId" = :terminalId AND "itemName" = :itemName', {
         terminalId,
         itemName,
-        upToCapacity: DEFAULT_CAPACITY,
-      }),
-    );
+      })
+      .andWhere('"restockPending" = false')
+      .andWhere('quantity < capacity * CAST(:ratio AS numeric)', {
+        ratio: REORDER_THRESHOLD_RATIO,
+      })
+      .execute();
+    if (claim.affected) {
+      await this.policy
+        .execute(() =>
+          lastValueFrom(
+            this.replenishmentConsumer.emit('restock_request', {
+              terminalId,
+              itemName,
+            }),
+          ),
+        )
+        .then(() => {
+          this.logger.log(
+            `restock requested terminalId=${terminalId} item=${itemName}`,
+          );
+        })
+        .catch(async (error) => {
+          this.logger.warn(
+            `restock request failed terminalId=${terminalId} item=${itemName}: ${(error as Error).message}`,
+          );
+          // release the claim so the next low-stock check can try again
+          await this.stock
+            .update({ terminalId, itemName }, { restockPending: false })
+            .catch((releaseError: unknown) => {
+              // not awaited by anyone: an escape here would be an
+              // unhandled rejection
+              this.logger.error(
+                `failed to release restock claim terminalId=${terminalId} item=${itemName}: ${(releaseError as Error).message}`,
+              );
+            });
+        });
+    }
   }
 }

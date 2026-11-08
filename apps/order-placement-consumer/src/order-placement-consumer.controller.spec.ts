@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import type { RmqContext } from '@nestjs/microservices';
-import { ORDERS_DELIVERY_LIMIT, ORDERS_MAX_ATTEMPTS } from '@app/contracts';
+import { ORDERS_DELIVERY_LIMIT, ORDERS_MAX_ATTEMPTS } from '@app/contracts/orders';
 import { OrderPlacementConsumerController } from './order-placement-consumer.controller.js';
 import type { OrderPlacementConsumerService } from './order-placement-consumer.service.js';
 

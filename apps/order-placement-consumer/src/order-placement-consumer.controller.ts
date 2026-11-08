@@ -5,7 +5,7 @@ import {
   ORDER_PATTERNS,
   ORDERS_MAX_ATTEMPTS,
   PlaceOrderMessage,
-} from '@app/contracts';
+} from '@app/contracts/orders';
 import { assertNever, formatErrors } from '@app/utils';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -35,7 +35,6 @@ export class OrderPlacementConsumerController {
 
     try {
       const out = await this.service.handleOrderPlaced(message);
-
       switch (out.kind) {
         case 'placed':
           this.logger.log(

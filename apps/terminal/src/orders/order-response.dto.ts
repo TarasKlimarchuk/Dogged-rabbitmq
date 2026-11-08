@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { CreateOrderDto } from '@app/contracts';
+import { CreateOrderDto } from '@app/contracts/orders';
 import { IsNotEmpty, IsString } from 'class-validator';
 
 export class OrderResponseDto {

@@ -6,10 +6,11 @@ import {
   ORDERS_DLQ_OPTIONS,
   ORDERS_QUEUE,
   ORDERS_QUEUE_OPTIONS,
-} from '@app/contracts';
+} from '@app/contracts/orders';
 import { OrderPlacementConsumerModule } from './order-placement-consumer.module.js';
 
-const RABBITMQ_URL = 'amqp://rabbitMQ:5672';
+// main.ts runs before ConfigModule loads .env, so only real env vars apply here.
+const RABBITMQ_URL = process.env.RABBITMQ_URL ?? 'amqp://rabbitMQ:5672';
 
 // orders_queue dead-letters into ORDERS_DLQ, but only declaring orders_queue
 // doesn't create the DLQ, and a dead letter with nowhere to go is silently

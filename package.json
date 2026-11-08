@@ -18,6 +18,7 @@
     "start:orders-management:dev": "nest start orders-management --watch",
     "start:warehouse": "nest start warehouse",
     "start:warehouse:dev": "nest start warehouse --watch",
+    "start:order-placement-consumer:local": "RABBITMQ_URL=amqp://localhost:5672 POSTGRES_HOST=localhost POSTGRES_PORT=5434 WAREHOUSE_URL=http://localhost:3002 nest start order-placement-consumer --watch --debug",
     "lint": "oxlint --type-aware apps/ libs/",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "test": "vitest run",

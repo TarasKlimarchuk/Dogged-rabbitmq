@@ -5,7 +5,7 @@ import type { HttpService } from '@nestjs/axios';
 import { HttpException, ServiceUnavailableException } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { OrdersService } from './orders.service.js';
-import type { CreateOrderDto } from '@app/contracts/create-order.dto.js';
+import type { CreateOrderDto } from '@app/contracts/orders/create-order.dto.js';
 
 const metrics = new ResilienceMetrics(new Registry());
 

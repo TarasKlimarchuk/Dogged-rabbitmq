@@ -7,9 +7,9 @@ import {
 import { lastValueFrom } from 'rxjs';
 import { createRetryTimeoutBreakerPolicy } from '@app/resilience';
 import { ResilienceMetrics } from '@app/metrics';
-import { CreateOrderDto } from '@app/contracts/create-order.dto.js';
+import { CreateOrderDto } from '@app/contracts/orders/create-order.dto.js';
 import { ClientProxy } from '@nestjs/microservices';
-import { ORDER_PATTERNS } from '@app/contracts';
+import { ORDER_PATTERNS } from '@app/contracts/orders';
 import { ConfigService } from '@nestjs/config';
 import { OrderResponseDto } from './order-response.dto.js';
 

@@ -1,5 +1,5 @@
 import type { DataSource, EntityManager, Repository } from 'typeorm';
-import type { PlaceOrderMessage } from '@app/contracts';
+import type { PlaceOrderMessage } from '@app/contracts/orders';
 import type { Order } from '@app/orders-db';
 import { OrderPlacementConsumerService } from './order-placement-consumer.service.js';
 import type { MenuService } from './menu/menu.service.js';

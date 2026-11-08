@@ -28,8 +28,11 @@
       "@app/chaos/*": [
         "./libs/chaos/src/*"
       ],
-      "@app/contracts": [
-        "./libs/contracts/src/index.ts"
+      "@app/contracts/orders": [
+        "./libs/contracts/src/orders/index.ts"
+      ],
+      "@app/contracts/replenishments": [
+        "./libs/contracts/src/replenishments/index.ts"
       ],
       "@app/contracts/*": [
         "./libs/contracts/src/*"
