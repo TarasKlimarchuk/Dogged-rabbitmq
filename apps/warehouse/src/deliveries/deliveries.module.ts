@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Delivery } from './delivery.entity.js';
+import { Delivery } from '@app/warehouse-db';
 import { DeliveriesController } from './deliveries.controller.js';
 import { DeliveriesService } from './deliveries.service.js';
 

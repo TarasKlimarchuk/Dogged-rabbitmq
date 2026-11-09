@@ -1,8 +1,7 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ChaosGuard } from '@app/chaos';
 import { DeliveriesService } from './deliveries.service.js';
-import { RestockRequestDto } from './restock-request.dto.js';
 import { DeliveryResponseDto } from './delivery-response.dto.js';
 import { DeliveryDetailsDto } from './delivery-details.dto.js';
 import { ListDeliveriesQueryDto } from './list-deliveries-query.dto.js';
@@ -12,17 +11,6 @@ import { ListDeliveriesQueryDto } from './list-deliveries-query.dto.js';
 @UseGuards(ChaosGuard)
 export class DeliveriesController {
   constructor(private readonly deliveriesService: DeliveriesService) {}
-
-  @Post('restock')
-  @ApiOperation({
-    summary:
-      'Accept a restock request from orders-management. Warehouse stock is ' +
-      'treated as infinite, so this always ships the full requested amount.',
-  })
-  @ApiCreatedResponse({ type: DeliveryResponseDto })
-  requestRestock(@Body() dto: RestockRequestDto): Promise<DeliveryResponseDto> {
-    return this.deliveriesService.requestRestock(dto);
-  }
 
   @Get('deliveries')
   @ApiOperation({

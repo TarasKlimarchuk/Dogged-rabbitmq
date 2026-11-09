@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import { Delivery } from './deliveries/delivery.entity.js';
+import { Delivery } from '@app/warehouse-db';
 
 // Used by the TypeORM CLI only (migration:generate/run/revert) — the running
 // app gets its connection config from app.module.ts's TypeOrmModule instead.

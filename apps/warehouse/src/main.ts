@@ -13,7 +13,8 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('Dogged · Warehouse API')
     .setDescription(
-      'Receives delivery requests from orders-management for the hot dog vendor system.',
+      'Lists and confirms deliveries for the hot dog vendor system. Restock ' +
+        'requests arrive over RabbitMQ (restock-request-consumer), not HTTP.',
     )
     .setVersion('0.1')
     .build();

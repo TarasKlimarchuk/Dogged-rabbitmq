@@ -60,6 +60,12 @@
       ],
       "@app/orders-db/*": [
         "./libs/orders-db/src/*"
+      ],
+      "@app/warehouse-db": [
+        "./libs/warehouse-db/src/index.ts"
+      ],
+      "@app/warehouse-db/*": [
+        "./libs/warehouse-db/src/*"
       ]
     }
   }

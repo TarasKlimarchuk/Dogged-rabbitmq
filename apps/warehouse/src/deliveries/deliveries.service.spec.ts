@@ -6,7 +6,7 @@ import type { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { DeliveriesService } from './deliveries.service.js';
-import type { Delivery } from './delivery.entity.js';
+import type { Delivery } from '@app/warehouse-db';
 
 const metrics = new ResilienceMetrics(new Registry());
 
@@ -29,25 +29,10 @@ function createConfig(): ConfigService {
 }
 
 describe('DeliveriesService', () => {
-  it('requestRestock() ships the full amount asked for and returns a pending delivery', async () => {
-    const repo = createRepo();
-    const service = new DeliveriesService(repo, createHttp(vi.fn()), createConfig(), metrics);
-
-    const result = await service.requestRestock({
-      terminalId: 'terminal-a',
-      itemName: 'Hot Dog',
-      upToCapacity: 50,
-    });
-
-    expect(result).toEqual({ deliveryId: 'delivery-1', status: 'pending' });
-    expect(repo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ terminalId: 'terminal-a', itemName: 'Hot Dog', quantity: 50 }),
-    );
-  });
-
   describe('findAll()', () => {
     const pending: Delivery = {
       id: 'delivery-1',
+      restockRequestId: null,
       terminalId: 'terminal-a',
       itemName: 'Hot Dog',
       quantity: 50,
@@ -110,6 +95,7 @@ describe('DeliveriesService', () => {
   it('confirmDelivery() marks delivered and notifies orders-management without blocking the response', async () => {
     const delivery: Delivery = {
       id: 'delivery-1',
+      restockRequestId: null,
       terminalId: 'terminal-a',
       itemName: 'Hot Dog',
       quantity: 50,
@@ -144,6 +130,7 @@ describe('DeliveriesService', () => {
   it('confirmDelivery() is idempotent — confirming an already-delivered delivery does not re-notify', async () => {
     const delivery: Delivery = {
       id: 'delivery-1',
+      restockRequestId: null,
       terminalId: 'terminal-a',
       itemName: 'Hot Dog',
       quantity: 50,
@@ -165,6 +152,7 @@ describe('DeliveriesService', () => {
   it('does not throw and leaves notifiedOrdersManagement unset when the callback keeps failing', async () => {
     const delivery: Delivery = {
       id: 'delivery-1',
+      restockRequestId: null,
       terminalId: 'terminal-a',
       itemName: 'Hot Dog',
       quantity: 50,

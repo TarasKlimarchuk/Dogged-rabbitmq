@@ -102,6 +102,25 @@
       "compilerOptions": {
         "tsConfigPath": "libs/orders-db/tsconfig.lib.json"
       }
+    },
+    "warehouse-db": {
+      "type": "library",
+      "root": "libs/warehouse-db",
+      "entryFile": "index",
+      "sourceRoot": "libs/warehouse-db/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/warehouse-db/tsconfig.lib.json"
+      }
+    },
+    "restock-request-consumer": {
+      "type": "application",
+      "root": "apps/restock-request-consumer",
+      "entryFile": "main",
+      "sourceRoot": "apps/restock-request-consumer/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/restock-request-consumer/tsconfig.app.json",
+        "builder": "rspack"
+      }
     }
   }
 }

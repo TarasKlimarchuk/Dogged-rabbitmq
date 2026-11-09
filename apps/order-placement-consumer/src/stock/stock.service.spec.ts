@@ -98,7 +98,7 @@ describe('StockService.reserve()', () => {
       expect(outbox.enqueue).toHaveBeenCalledWith(
         manager,
         REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED,
-        { terminalId: 'terminal-a', itemName: 'Hot Dog' },
+        { terminalId: 'terminal-a', itemName: 'Hot Dog', upToCapacity: 50 },
       );
     });
 
@@ -149,6 +149,7 @@ describe('StockService.reserve()', () => {
         {
           terminalId: 'terminal-a',
           itemName: 'Soda',
+          upToCapacity: 50,
         },
       );
     });

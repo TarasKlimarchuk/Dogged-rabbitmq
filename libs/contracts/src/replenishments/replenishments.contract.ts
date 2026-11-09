@@ -1,15 +1,29 @@
+import { IsInt, IsNotEmpty, IsString, IsUUID, Min } from 'class-validator';
+
 export const REPLENISHMENT_PATTERNS = {
   RESTOCK_REQUESTED: 'replenishment.restock_requested',
 } as const;
 
 // Published by order-placement-consumer (through its outbox) when a terminal's
-// stock for an item drops below the reorder threshold.
-export interface RestockRequestedEvent {
+// stock for an item drops below the reorder threshold. A class (not an
+// interface) so the consumer can validate incoming payloads against it.
+export class RestockRequestedEvent {
   // The outbox row id. Delivery is at-least-once, so the consumer must use
   // this to recognise and drop a message it has already handled.
+  @IsUUID()
   messageId: string;
+
+  @IsString()
+  @IsNotEmpty()
   terminalId: string;
+
+  @IsString()
+  @IsNotEmpty()
   itemName: string;
+
+  @IsInt()
+  @Min(1)
+  upToCapacity: number;
 }
 
 export const REPLENISHMENTS_QUEUE = 'replenishments_queue';

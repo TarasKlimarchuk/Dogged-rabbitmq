@@ -6,7 +6,7 @@ import {
   ORDERS_MAX_ATTEMPTS,
   PlaceOrderMessage,
 } from '@app/contracts/orders';
-import { assertNever, formatErrors } from '@app/utils';
+import { assertNever, deliveryAttempt, formatErrors } from '@app/utils';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -71,15 +71,4 @@ export class OrderPlacementConsumerController {
       channel.reject(originalMsg, true);
     }
   }
-}
-
-// Quorum queues set x-delivery-count on redeliveries (it's absent on the first
-// one), so the current attempt is that count + 1.
-function deliveryAttempt(message: {
-  properties?: { headers?: Record<string, unknown> };
-}): number {
-  const previous = Number(
-    message.properties?.headers?.['x-delivery-count'] ?? 0,
-  );
-  return (Number.isFinite(previous) ? previous : 0) + 1;
 }

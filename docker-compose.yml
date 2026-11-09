@@ -51,6 +51,27 @@ services:
         condition: service_started
       rabbitMQ:
         condition: service_started
+  restock-request-consumer:
+    build:
+      context: .
+      dockerfile: apps/restock-request-consumer/Dockerfile
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      WAREHOUSE_DB_NAME: ${WAREHOUSE_DB_NAME}
+    deploy:
+      replicas: 2
+    networks: [orders-management, warehouse, postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # warehouse runs the migrations on the shared database
+      warehouse:
+        condition: service_started
+      rabbitMQ:
+        condition: service_started
   postgres:
     image: postgres:16-alpine
     environment:

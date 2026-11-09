@@ -7,6 +7,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { DeliveriesModule } from './deliveries/deliveries.module.js';
 import { InitialSchema1791462830391 } from './migrations/1791462830391-InitialSchema.js';
+import { AddRestockRequestId1791462831391 } from './migrations/1791462831391-AddRestockRequestId.js';
 
 @Module({
   imports: [
@@ -23,7 +24,10 @@ import { InitialSchema1791462830391 } from './migrations/1791462830391-InitialSc
         database: config.get<string>('WAREHOUSE_DB_NAME', 'warehouse'),
         autoLoadEntities: true,
         synchronize: false,
-        migrations: [InitialSchema1791462830391],
+        migrations: [
+          InitialSchema1791462830391,
+          AddRestockRequestId1791462831391,
+        ],
         migrationsRun: true,
       }),
     }),

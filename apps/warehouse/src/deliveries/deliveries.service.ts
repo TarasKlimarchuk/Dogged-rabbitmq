@@ -6,8 +6,7 @@ import { Repository } from 'typeorm';
 import { firstValueFrom } from 'rxjs';
 import { createRetryTimeoutBreakerPolicy, isRetryableHttpError } from '@app/resilience';
 import { ResilienceMetrics } from '@app/metrics';
-import { Delivery } from './delivery.entity.js';
-import { RestockRequestDto } from './restock-request.dto.js';
+import { Delivery } from '@app/warehouse-db';
 import { DeliveryResponseDto } from './delivery-response.dto.js';
 import { DeliveryDetailsDto } from './delivery-details.dto.js';
 
@@ -27,17 +26,6 @@ export class DeliveriesService {
       isRetryable: isRetryableHttpError,
       ...metrics.breakerHooks('orders-management-callback'),
     });
-  }
-
-  async requestRestock(dto: RestockRequestDto): Promise<DeliveryResponseDto> {
-    const delivery = await this.deliveries.save(
-      this.deliveries.create({
-        terminalId: dto.terminalId,
-        itemName: dto.itemName,
-        quantity: dto.upToCapacity,
-      }),
-    );
-    return { deliveryId: delivery.id, status: 'pending' };
   }
 
   async findAll(status?: 'pending' | 'delivered'): Promise<DeliveryDetailsDto[]> {

@@ -53,7 +53,12 @@ export class StockService {
       }
 
       if (row.quantity < row.capacity * REORDER_THRESHOLD_RATIO) {
-        await this.scheduleRestock(manager, terminalId, item.name);
+        await this.scheduleRestock(
+          manager,
+          terminalId,
+          item.name,
+          row.capacity,
+        );
       }
     }
 
@@ -67,6 +72,7 @@ export class StockService {
     manager: EntityManager,
     terminalId: string,
     itemName: string,
+    capacity: number,
   ): Promise<void> {
     const claim = await manager.update(
       TerminalStock,
@@ -80,6 +86,7 @@ export class StockService {
     const payload: Omit<RestockRequestedEvent, 'messageId'> = {
       terminalId,
       itemName,
+      upToCapacity: capacity,
     };
     await this.outbox.enqueue(
       manager,
