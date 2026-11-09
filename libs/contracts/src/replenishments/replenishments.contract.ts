@@ -1,6 +1,16 @@
-export const ORDER_PATTERNS = {
-  PLACE: 'replenishment.place',
-};
+export const REPLENISHMENT_PATTERNS = {
+  RESTOCK_REQUESTED: 'replenishment.restock_requested',
+} as const;
+
+// Published by order-placement-consumer (through its outbox) when a terminal's
+// stock for an item drops below the reorder threshold.
+export interface RestockRequestedEvent {
+  // The outbox row id. Delivery is at-least-once, so the consumer must use
+  // this to recognise and drop a message it has already handled.
+  messageId: string;
+  terminalId: string;
+  itemName: string;
+}
 
 export const REPLENISHMENTS_QUEUE = 'replenishments_queue';
 export const REPLENISHMENTS_DLQ = 'replenishments_queue.dlq';
@@ -12,9 +22,10 @@ export const REPLENISHMENTS_DELIVERY_LIMIT = 5;
 // Total processing attempts per message: the first delivery + every requeue.
 export const REPLENISHMENTS_MAX_ATTEMPTS = REPLENISHMENTS_DELIVERY_LIMIT + 1;
 
-// Both the producer (terminal) and the consumer declare replenishments_queue, and
-// RabbitMQ rejects a declaration whose arguments differ from the existing
-// queue (PRECONDITION_FAILED). Keep this the single source for both sides.
+// Both the producer (order-placement-consumer) and the consumer declare
+// replenishments_queue, and RabbitMQ rejects a declaration whose arguments
+// differ from the existing queue (PRECONDITION_FAILED). Keep this the single
+// source for both sides.
 export const REPLENISHMENTS_QUEUE_OPTIONS = {
   durable: true,
   arguments: {

@@ -2,11 +2,11 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MetricsModule } from '@app/metrics';
+import { Order } from '@app/orders-db';
 import { OrderPlacementConsumerController } from './order-placement-consumer.controller.js';
 import { OrderPlacementConsumerService } from './order-placement-consumer.service.js';
 import { StockModule } from './stock/stock.module.js';
 import { MenuModule } from './menu/menu.module.js';
-import { Order } from '@app/orders-db';
 
 @Module({
   imports: [
@@ -29,7 +29,7 @@ import { Order } from '@app/orders-db';
       }),
     }),
     TypeOrmModule.forFeature([Order]),
-    MetricsModule, // provides ResilienceMetrics for StockService's restock policy
+    MetricsModule, // exposes /metrics and HTTP request metrics
     StockModule,
     MenuModule,
   ],

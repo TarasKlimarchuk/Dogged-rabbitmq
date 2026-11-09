@@ -10,6 +10,7 @@ import { InitialSchema1791462826391 } from './migrations/1791462826391-InitialSc
 import { SeedMenu1791462827391 } from './migrations/1791462827391-SeedMenu.js';
 import { SeedTerminalStock1791462828391 } from './migrations/1791462828391-SeedTerminalStock.js';
 import { AddRestockPendingColumn1791462829391 } from './migrations/1791462829391-AddRestockPendingColumn.js';
+import { AddOutbox1791462830391 } from './migrations/1791462830391-AddOutbox.js';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AddRestockPendingColumn1791462829391 } from './migrations/1791462829391
           SeedMenu1791462827391,
           SeedTerminalStock1791462828391,
           AddRestockPendingColumn1791462829391,
+          AddOutbox1791462830391,
         ],
         migrationsRun: true,
       }),

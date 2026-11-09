@@ -1,6 +1,5 @@
-import type { DataSource, EntityManager, Repository } from 'typeorm';
+import type { DataSource, EntityManager } from 'typeorm';
 import type { PlaceOrderMessage } from '@app/contracts/orders';
-import type { Order } from '@app/orders-db';
 import { OrderPlacementConsumerService } from './order-placement-consumer.service.js';
 import type { MenuService } from './menu/menu.service.js';
 import type { ReserveResult, StockService } from './stock/stock.service.js';
@@ -13,7 +12,10 @@ const message: PlaceOrderMessage = {
 
 function setup({
   missingNames = [] as string[],
-  reserve = { kind: 'reserved', inventoryIssue: false } as ReserveResult,
+  reserve = {
+    kind: 'reserved',
+    inventoryIssue: false,
+  } as ReserveResult,
   insert = vi.fn().mockResolvedValue({}),
 } = {}) {
   const manager = {
@@ -27,12 +29,13 @@ function setup({
     async (work: (m: EntityManager) => Promise<unknown>) =>
       work(manager as unknown as EntityManager),
   );
-  const stock = { reserve: vi.fn().mockResolvedValue(reserve) };
+  const stock = {
+    reserve: vi.fn().mockResolvedValue(reserve),
+  };
   const menu = { findMissingNames: vi.fn().mockResolvedValue(missingNames) };
 
   const service = new OrderPlacementConsumerService(
     { transaction } as unknown as DataSource,
-    {} as Repository<Order>,
     stock as unknown as StockService,
     menu as unknown as MenuService,
   );
@@ -55,7 +58,11 @@ describe('OrderPlacementConsumerService', () => {
       expect.anything(),
       expect.objectContaining({ idempotencyKey: message.idempotencyKey }),
     );
-    expect(stock.reserve).toHaveBeenCalledWith(manager, 'terminal-a', message.items);
+    expect(stock.reserve).toHaveBeenCalledWith(
+      manager,
+      'terminal-a',
+      message.items,
+    );
     expect(manager.update).not.toHaveBeenCalled();
   });
 
@@ -118,6 +125,8 @@ describe('OrderPlacementConsumerService', () => {
       insert: vi.fn().mockRejectedValue(new Error('connection refused')),
     });
 
-    await expect(service.handleOrderPlaced(message)).rejects.toThrow('connection refused');
+    await expect(service.handleOrderPlaced(message)).rejects.toThrow(
+      'connection refused',
+    );
   });
 });

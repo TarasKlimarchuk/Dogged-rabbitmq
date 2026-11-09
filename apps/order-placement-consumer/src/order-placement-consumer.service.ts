@@ -41,7 +41,7 @@ export class OrderPlacementConsumerService {
     }
 
     try {
-      const result = await this.dataSource.transaction(async (manager) => {
+      return await this.dataSource.transaction(async (manager) => {
         await manager.insert(
           Order,
           manager.create(Order, {
@@ -73,10 +73,6 @@ export class OrderPlacementConsumerService {
           inventoryIssue,
         };
       });
-
-      await this.stock.requestRestockIfNeeded(dto.terminalId, dto.items);
-
-      return result;
     } catch (error) {
       if (error instanceof OrderRejected) {
         return { kind: 'rejected', reason: error.reason };

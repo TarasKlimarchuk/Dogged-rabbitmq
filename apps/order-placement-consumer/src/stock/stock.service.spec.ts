@@ -1,82 +1,61 @@
-import { Registry } from '@prometheus-io/client';
-import { ResilienceMetrics } from '@app/metrics';
-import type { EntityManager, Repository } from 'typeorm';
-import type { HttpService } from '@nestjs/axios';
-import type { ConfigService } from '@nestjs/config';
-import { of, throwError } from 'rxjs';
+import type { EntityManager } from 'typeorm';
+import { REPLENISHMENT_PATTERNS } from '@app/contracts/replenishments';
+import { TerminalStock } from '@app/orders-db';
 import { StockService } from './stock.service.js';
-import type { TerminalStock } from '@app/orders-db';
+import type { OutboxService } from '../outbox/outbox.service.js';
 
-const metrics = new ResilienceMetrics(new Registry());
+// capacity 50 → reorder threshold 15
+const OK = { quantity: 45, capacity: 50, wasInsufficient: false };
+const LOW = { quantity: 14, capacity: 50, wasInsufficient: false };
 
-function createStockRepo(
-  overrides: Partial<Repository<TerminalStock>> = {},
-): Repository<TerminalStock> {
-  return {
-    update: vi.fn().mockResolvedValue({ affected: 1 }),
-    ...overrides,
-  } as unknown as Repository<TerminalStock>;
+function setup({
+  query = vi.fn().mockResolvedValue([OK]),
+  update = vi.fn().mockResolvedValue({ affected: 1 }),
+  enqueue = vi.fn().mockResolvedValue('message-id'),
+} = {}) {
+  const manager = { query, update };
+  const outbox = { enqueue };
+  const service = new StockService(outbox as unknown as OutboxService);
+  const reserve = (items: { name: string; quantity: number }[]) =>
+    service.reserve(manager as unknown as EntityManager, 'terminal-a', items);
+  return { reserve, manager, outbox };
 }
 
-function createManager(query: ReturnType<typeof vi.fn>): EntityManager {
-  return { query } as unknown as EntityManager;
-}
-
-function createHttp(post: ReturnType<typeof vi.fn>): HttpService {
-  return { post } as unknown as HttpService;
-}
-
-function createConfig(): ConfigService {
-  return { get: () => 'http://warehouse:3002' } as unknown as ConfigService;
-}
-
-function createService(
-  stockRepo = createStockRepo(),
-  post = vi.fn().mockReturnValue(of({})),
-): StockService {
-  return new StockService(stockRepo, createHttp(post), createConfig(), metrics);
-}
-
-describe('StockService', () => {
-  describe('reserve()', () => {
+describe('StockService.reserve()', () => {
+  describe('decrementing', () => {
     it('decrements through the given transaction manager', async () => {
-      const query = vi
-        .fn()
-        .mockResolvedValue([{ quantity: 45, capacity: 50, wasInsufficient: false }]);
-      const stockRepo = createStockRepo();
-      const service = createService(stockRepo);
+      const { reserve, manager } = setup();
 
-      const result = await service.reserve(createManager(query), 'terminal-a', [
-        { name: 'Hot Dog', quantity: 5 },
-      ]);
+      const result = await reserve([{ name: 'Hot Dog', quantity: 5 }]);
 
       expect(result).toEqual({ kind: 'reserved', inventoryIssue: false });
-      expect(query).toHaveBeenCalledWith(expect.any(String), ['terminal-a', 'Hot Dog', 5]);
-      // the injected repository runs outside the transaction, so it must not be used
-      expect(stockRepo.update).not.toHaveBeenCalled();
+      expect(manager.query).toHaveBeenCalledWith(expect.any(String), [
+        'terminal-a',
+        'Hot Dog',
+        5,
+      ]);
     });
 
     it('flags inventoryIssue when the database reports the request as insufficient', async () => {
-      const query = vi
-        .fn()
-        .mockResolvedValue([{ quantity: 0, capacity: 50, wasInsufficient: true }]);
-      const service = createService();
+      const { reserve } = setup({
+        query: vi
+          .fn()
+          .mockResolvedValue([
+            { quantity: 0, capacity: 50, wasInsufficient: true },
+          ]),
+      });
 
-      const result = await service.reserve(createManager(query), 'terminal-a', [
-        { name: 'Hot Dog', quantity: 5 },
-      ]);
+      const result = await reserve([{ name: 'Hot Dog', quantity: 5 }]);
 
       expect(result).toEqual({ kind: 'reserved', inventoryIssue: true });
     });
 
     it('returns missing-stock when the terminal has no stock row for an item', async () => {
-      const query = vi
-        .fn()
-        .mockResolvedValueOnce([{ quantity: 10, capacity: 50, wasInsufficient: false }])
-        .mockResolvedValueOnce([]);
-      const service = createService();
+      const { reserve } = setup({
+        query: vi.fn().mockResolvedValueOnce([OK]).mockResolvedValueOnce([]),
+      });
 
-      const result = await service.reserve(createManager(query), 'terminal-a', [
+      const result = await reserve([
         { name: 'Hot Dog', quantity: 1 },
         { name: 'Soda', quantity: 1 },
       ]);
@@ -85,61 +64,104 @@ describe('StockService', () => {
     });
 
     it('stops at the first missing item without decrementing the rest', async () => {
-      const query = vi.fn().mockResolvedValue([]);
-      const service = createService();
+      const { reserve, manager } = setup({
+        query: vi.fn().mockResolvedValue([]),
+      });
 
-      await service.reserve(createManager(query), 'terminal-a', [
+      await reserve([
         { name: 'Hot Dog', quantity: 1 },
         { name: 'Soda', quantity: 1 },
       ]);
 
-      expect(query).toHaveBeenCalledTimes(1);
+      expect(manager.query).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('requestRestockIfNeeded()', () => {
-    it('claims restockPending atomically before sending a restock request', async () => {
-      const update = vi.fn().mockResolvedValue({ affected: 1 });
-      const post = vi.fn().mockReturnValue(of({}));
-      const service = createService(createStockRepo({ update }), post);
+  describe('scheduling restocks', () => {
+    it('claims restockPending and enqueues a request through the same manager when stock drops below the threshold', async () => {
+      const { reserve, manager, outbox } = setup({
+        query: vi.fn().mockResolvedValue([LOW]),
+      });
 
-      await service.requestRestockIfNeeded('terminal-a', 'Hot Dog');
+      await reserve([{ name: 'Hot Dog', quantity: 1 }]);
 
-      expect(update).toHaveBeenCalledWith(
-        { terminalId: 'terminal-a', itemName: 'Hot Dog', restockPending: false },
+      expect(manager.update).toHaveBeenCalledWith(
+        TerminalStock,
+        {
+          terminalId: 'terminal-a',
+          itemName: 'Hot Dog',
+          restockPending: false,
+        },
         { restockPending: true },
       );
-      await vi.waitFor(() => {
-        expect(post).toHaveBeenCalledWith(
-          'http://warehouse:3002/restock',
-          expect.objectContaining({ terminalId: 'terminal-a', itemName: 'Hot Dog' }),
-        );
-      });
+      // the same manager → the outbox row commits (or rolls back) with the order
+      expect(outbox.enqueue).toHaveBeenCalledWith(
+        manager,
+        REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED,
+        { terminalId: 'terminal-a', itemName: 'Hot Dog' },
+      );
     });
 
-    it('does not send a restock request when the claim affects no rows (already pending)', async () => {
-      const update = vi.fn().mockResolvedValue({ affected: 0 });
-      const post = vi.fn().mockReturnValue(of({}));
-      const service = createService(createStockRepo({ update }), post);
+    it('does nothing when stock stays at or above the threshold', async () => {
+      const { reserve, manager, outbox } = setup({
+        query: vi
+          .fn()
+          .mockResolvedValue([
+            { quantity: 15, capacity: 50, wasInsufficient: false },
+          ]),
+      });
 
-      await service.requestRestockIfNeeded('terminal-a', 'Hot Dog');
+      await reserve([{ name: 'Hot Dog', quantity: 1 }]);
 
-      expect(post).not.toHaveBeenCalled();
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(outbox.enqueue).not.toHaveBeenCalled();
     });
 
-    it('releases the claim when the restock request ultimately fails', async () => {
-      const update = vi.fn().mockResolvedValue({ affected: 1 });
-      const post = vi.fn().mockReturnValue(throwError(() => new Error('warehouse down')));
-      const service = createService(createStockRepo({ update }), post);
-
-      await service.requestRestockIfNeeded('terminal-a', 'Hot Dog');
-
-      await vi.waitFor(() => {
-        expect(update).toHaveBeenCalledWith(
-          { terminalId: 'terminal-a', itemName: 'Hot Dog' },
-          { restockPending: false },
-        );
+    it('does not enqueue when a restock is already pending (claim affects no rows)', async () => {
+      const { reserve, outbox } = setup({
+        query: vi.fn().mockResolvedValue([LOW]),
+        update: vi.fn().mockResolvedValue({ affected: 0 }),
       });
+
+      await reserve([{ name: 'Hot Dog', quantity: 1 }]);
+
+      expect(outbox.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('enqueues only for the items that were claimed', async () => {
+      const { reserve, outbox } = setup({
+        query: vi.fn().mockResolvedValue([LOW]),
+        update: vi
+          .fn()
+          .mockResolvedValueOnce({ affected: 0 }) // Hot Dog already pending
+          .mockResolvedValueOnce({ affected: 1 }), // Soda claimed
+      });
+
+      await reserve([
+        { name: 'Hot Dog', quantity: 1 },
+        { name: 'Soda', quantity: 1 },
+      ]);
+
+      expect(outbox.enqueue).toHaveBeenCalledTimes(1);
+      expect(outbox.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(String),
+        {
+          terminalId: 'terminal-a',
+          itemName: 'Soda',
+        },
+      );
+    });
+
+    it('lets an outbox failure propagate so the whole order transaction rolls back', async () => {
+      const { reserve } = setup({
+        query: vi.fn().mockResolvedValue([LOW]),
+        enqueue: vi.fn().mockRejectedValue(new Error('db down')),
+      });
+
+      await expect(reserve([{ name: 'Hot Dog', quantity: 1 }])).rejects.toThrow(
+        'db down',
+      );
     });
   });
 });
