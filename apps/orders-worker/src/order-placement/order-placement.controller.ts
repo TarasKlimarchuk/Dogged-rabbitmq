@@ -58,10 +58,11 @@ export class OrderPlacementController {
       }
     } catch (error) {
       const attempt = deliveryAttempt(originalMsg);
-      const reason = (error as Error).message;
+      const { message: reason, stack } = error as Error;
       if (attempt >= ORDERS_MAX_ATTEMPTS) {
         this.logger.error(
           `order failed on final attempt ${attempt}/${ORDERS_MAX_ATTEMPTS}, RabbitMQ will move it to the DLQ, ${key}: ${reason}`,
+          stack,
         );
       } else {
         this.logger.warn(

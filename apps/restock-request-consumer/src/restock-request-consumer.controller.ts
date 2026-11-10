@@ -51,10 +51,11 @@ export class RestockRequestConsumerController {
       channel.ack(originalMsg);
     } catch (error) {
       const attempt = deliveryAttempt(originalMsg);
-      const reason = (error as Error).message;
+      const { message: reason, stack } = error as Error;
       if (attempt >= REPLENISHMENTS_MAX_ATTEMPTS) {
         this.logger.error(
           `restock request failed on final attempt ${attempt}/${REPLENISHMENTS_MAX_ATTEMPTS}, RabbitMQ will move it to the DLQ, ${key}: ${reason}`,
+          stack,
         );
       } else {
         this.logger.warn(

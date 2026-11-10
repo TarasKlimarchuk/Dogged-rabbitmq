@@ -29,7 +29,6 @@ export class OrderPlacementService {
   ) {}
 
   async handleOrderPlaced(dto: PlaceOrderMessage): Promise<PlaceOrderOutcome> {
-    // todo mb add info log about order started, order succeeded
     const missingItems = await this.menu.findMissingNames(
       dto.items.map((item) => item.name),
     );

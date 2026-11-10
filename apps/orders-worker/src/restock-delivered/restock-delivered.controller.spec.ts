@@ -118,6 +118,7 @@ describe('RestockDeliveredController', () => {
 
     expect(Logger.prototype.error).toHaveBeenCalledWith(
       expect.stringContaining('will move it to the DLQ'),
+      expect.stringContaining('Error: connection refused'),
     );
     expect(channel.reject).toHaveBeenCalledWith(rawMessage, true);
   });
