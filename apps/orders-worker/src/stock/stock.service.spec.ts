@@ -2,7 +2,7 @@ import type { EntityManager } from 'typeorm';
 import { REPLENISHMENT_PATTERNS } from '@app/contracts/replenishments';
 import { TerminalStock } from '@app/orders-db';
 import { StockService } from './stock.service.js';
-import type { OutboxService } from '../outbox/outbox.service.js';
+import type { OutboxService } from '@app/outbox';
 
 // capacity 50 → reorder threshold 15
 const OK = { quantity: 45, capacity: 50, wasInsufficient: false };
@@ -164,5 +164,33 @@ describe('StockService.reserve()', () => {
         'db down',
       );
     });
+  });
+});
+
+describe('StockService.restock()', () => {
+  function setupRestock(query = vi.fn().mockResolvedValue([{ quantity: 50 }])) {
+    const manager = { query } as unknown as EntityManager;
+    const service = new StockService({} as unknown as OutboxService);
+    return { service, manager, query };
+  }
+
+  it('adds the delivered quantity capped at capacity and clears restockPending, in the given manager', async () => {
+    const { service, manager, query } = setupRestock();
+
+    const result = await service.restock(manager, 'terminal-a', 'Hot Dog', 50);
+
+    expect(result).toEqual({ kind: 'restocked', quantity: 50 });
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain('LEAST(quantity + $3, capacity)');
+    expect(sql).toContain('"restockPending" = false');
+    expect(params).toEqual(['terminal-a', 'Hot Dog', 50]);
+  });
+
+  it('returns missing-stock when the terminal has no stock row for the item', async () => {
+    const { service, manager } = setupRestock(vi.fn().mockResolvedValue([]));
+
+    await expect(
+      service.restock(manager, 'terminal-a', 'Hot Dog', 50),
+    ).resolves.toEqual({ kind: 'missing-stock' });
   });
 });

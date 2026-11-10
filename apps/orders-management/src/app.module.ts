@@ -11,6 +11,7 @@ import { SeedMenu1791462827391 } from './migrations/1791462827391-SeedMenu.js';
 import { SeedTerminalStock1791462828391 } from './migrations/1791462828391-SeedTerminalStock.js';
 import { AddRestockPendingColumn1791462829391 } from './migrations/1791462829391-AddRestockPendingColumn.js';
 import { AddOutbox1791462830391 } from './migrations/1791462830391-AddOutbox.js';
+import { AddProcessedMessages1791462831391 } from './migrations/1791462831391-AddProcessedMessages.js';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AddOutbox1791462830391 } from './migrations/1791462830391-AddOutbox.js'
           SeedTerminalStock1791462828391,
           AddRestockPendingColumn1791462829391,
           AddOutbox1791462830391,
+          AddProcessedMessages1791462831391,
         ],
         migrationsRun: true,
       }),

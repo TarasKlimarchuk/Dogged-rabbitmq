@@ -1,7 +1,13 @@
 import 'dotenv/config';
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import { MenuItem, Order, TerminalStock } from '@app/orders-db';
+import {
+  MenuItem,
+  Order,
+  ProcessedMessage,
+  TerminalStock,
+} from '@app/orders-db';
+import { OutboxMessage } from '@app/outbox/outbox-message.entity.js';
 
 // Used by the TypeORM CLI only (migration:generate/run/revert) — the running
 // app gets its connection config from app.module.ts's TypeOrmModule instead.
@@ -12,6 +18,6 @@ export default new DataSource({
   username: process.env.POSTGRES_USER ?? 'postgres',
   password: process.env.POSTGRES_PASSWORD ?? 'postgres',
   database: process.env.ORDERS_DB_NAME ?? 'orders_management',
-  entities: [Order, TerminalStock, MenuItem],
+  entities: [Order, TerminalStock, MenuItem, OutboxMessage, ProcessedMessage],
   migrations: ['apps/orders-management/src/migrations/*.ts'],
 });

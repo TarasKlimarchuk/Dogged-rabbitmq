@@ -75,13 +75,13 @@
         "tsConfigPath": "libs/contracts/tsconfig.lib.json"
       }
     },
-    "order-placement-consumer": {
+    "orders-worker": {
       "type": "application",
-      "root": "apps/order-placement-consumer",
+      "root": "apps/orders-worker",
       "entryFile": "main",
-      "sourceRoot": "apps/order-placement-consumer/src",
+      "sourceRoot": "apps/orders-worker/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/order-placement-consumer/tsconfig.app.json",
+        "tsConfigPath": "apps/orders-worker/tsconfig.app.json",
         "builder": "rspack"
       }
     },
@@ -120,6 +120,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/restock-request-consumer/tsconfig.app.json",
         "builder": "rspack"
+      }
+    },
+    "outbox": {
+      "type": "library",
+      "root": "libs/outbox",
+      "entryFile": "index",
+      "sourceRoot": "libs/outbox/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/outbox/tsconfig.lib.json"
       }
     }
   }

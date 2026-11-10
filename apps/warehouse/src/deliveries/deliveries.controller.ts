@@ -25,8 +25,9 @@ export class DeliveriesController {
   @Post('deliveries/:id/confirm')
   @ApiOperation({
     summary:
-      'Simulates the courier confirming a delivery. Notifies orders-management ' +
-      'through retry + circuit breaker, without blocking this response on it.',
+      'Simulates the courier confirming a delivery. Idempotent. The ' +
+      'restock_delivered event is written to an outbox in the same ' +
+      'transaction and published to RabbitMQ in the background.',
   })
   @ApiOkResponse({ type: DeliveryResponseDto })
   confirmDelivery(@Param('id') id: string): Promise<DeliveryResponseDto> {

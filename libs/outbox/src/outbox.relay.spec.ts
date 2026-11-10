@@ -1,7 +1,7 @@
 import type { ClientProxy } from '@nestjs/microservices';
 import type { DataSource } from 'typeorm';
 import { Observable, of, throwError } from 'rxjs';
-import { OutboxMessage } from '@app/orders-db';
+import { OutboxMessage } from './outbox-message.entity.js';
 import { OUTBOX_MAX_ATTEMPTS, OutboxRelay } from './outbox.relay.js';
 
 function row(overrides: Partial<OutboxMessage> = {}): OutboxMessage {

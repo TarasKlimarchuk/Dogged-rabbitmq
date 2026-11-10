@@ -14,7 +14,7 @@ const RABBITMQ_URL = process.env.RABBITMQ_URL ?? 'amqp://rabbitMQ:5672';
 
 // replenishments_queue dead-letters into REPLENISHMENTS_DLQ, but declaring
 // the main queue doesn't create the DLQ, and a dead letter with nowhere to go
-// is silently dropped. order-placement-consumer declares it too; whichever
+// is silently dropped. orders-worker declares it too; whichever
 // service starts first wins, and assertQueue is idempotent.
 async function declareDeadLetterQueue(url: string): Promise<void> {
   const connection = await connect(url);
@@ -39,7 +39,7 @@ async function bootstrap() {
       queue: REPLENISHMENTS_QUEUE,
       noAck: false,
       prefetchCount: 10,
-      // must match the producer's (order-placement-consumer) declaration
+      // must match the producer's (orders-worker) declaration
       queueOptions: REPLENISHMENTS_QUEUE_OPTIONS,
     },
   });

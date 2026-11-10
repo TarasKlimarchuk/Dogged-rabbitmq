@@ -6,14 +6,12 @@ import {
 } from '@app/contracts/replenishments';
 import type { OrderItem } from '@app/orders-db';
 import { TerminalStock } from '@app/orders-db';
-import { OutboxService } from '../outbox/outbox.service.js';
+import { OutboxService } from '@app/outbox';
 
 const REORDER_THRESHOLD_RATIO = 0.3;
 
 export type ReserveResult =
   | { kind: 'reserved'; inventoryIssue: boolean }
-  // The terminal has no stock row for this item (unknown terminal, or an
-  // item that was never stocked there). Retrying can't fix it.
   | { kind: 'missing-stock'; itemName: string };
 
 interface DecrementRow {
@@ -24,6 +22,9 @@ interface DecrementRow {
 
 type DecrementResult =
   { kind: 'decremented'; row: DecrementRow } | { kind: 'missing-stock' };
+
+export type RestockResult =
+  { kind: 'restocked'; quantity: number } | { kind: 'missing-stock' };
 
 @Injectable()
 export class StockService {
@@ -65,9 +66,6 @@ export class StockService {
     return { kind: 'reserved', inventoryIssue };
   }
 
-  // Claims the restock and writes the outbox row in the caller's transaction,
-  // so there is no moment where restockPending is true but no message will
-  // ever be sent (which a publish after the commit could not guarantee).
   private async scheduleRestock(
     manager: EntityManager,
     terminalId: string,
@@ -122,5 +120,31 @@ export class StockService {
 
     const row = rows[0];
     return row ? { kind: 'decremented', row } : { kind: 'missing-stock' };
+  }
+
+  async restock(
+    manager: EntityManager,
+    terminalId: string,
+    itemName: string,
+    delivered: number,
+  ): Promise<RestockResult> {
+    const rows = await manager.query<{ quantity: number }[]>(
+      `
+        WITH updated AS (
+          UPDATE terminal_stock
+          SET quantity = LEAST(quantity + $3, capacity),
+              "restockPending" = false
+          WHERE "terminalId" = $1 AND "itemName" = $2
+          RETURNING quantity
+        )
+        SELECT quantity FROM updated
+      `,
+      [terminalId, itemName, delivered],
+    );
+
+    const row = rows[0];
+    return row
+      ? { kind: 'restocked', quantity: row.quantity }
+      : { kind: 'missing-stock' };
   }
 }

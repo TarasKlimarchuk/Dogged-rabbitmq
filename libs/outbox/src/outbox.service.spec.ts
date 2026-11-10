@@ -1,5 +1,5 @@
 import type { EntityManager } from 'typeorm';
-import { OutboxMessage } from '@app/orders-db';
+import { OutboxMessage } from './outbox-message.entity.js';
 import { OutboxService } from './outbox.service.js';
 
 describe('OutboxService', () => {

@@ -8,6 +8,8 @@ import { AppService } from './app.service.js';
 import { DeliveriesModule } from './deliveries/deliveries.module.js';
 import { InitialSchema1791462830391 } from './migrations/1791462830391-InitialSchema.js';
 import { AddRestockRequestId1791462831391 } from './migrations/1791462831391-AddRestockRequestId.js';
+import { AddOutbox1791462832391 } from './migrations/1791462832391-AddOutbox.js';
+import { DropNotifiedOrdersManagement1791462833391 } from './migrations/1791462833391-DropNotifiedOrdersManagement.js';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { AddRestockRequestId1791462831391 } from './migrations/1791462831391-Add
         migrations: [
           InitialSchema1791462830391,
           AddRestockRequestId1791462831391,
+          AddOutbox1791462832391,
+          DropNotifiedOrdersManagement1791462833391,
         ],
         migrationsRun: true,
       }),

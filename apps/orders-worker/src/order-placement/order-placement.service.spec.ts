@@ -1,8 +1,8 @@
 import type { DataSource, EntityManager } from 'typeorm';
 import type { PlaceOrderMessage } from '@app/contracts/orders';
-import { OrderPlacementConsumerService } from './order-placement-consumer.service.js';
-import type { MenuService } from './menu/menu.service.js';
-import type { ReserveResult, StockService } from './stock/stock.service.js';
+import { OrderPlacementService } from './order-placement.service.js';
+import type { MenuService } from '../menu/menu.service.js';
+import type { ReserveResult, StockService } from '../stock/stock.service.js';
 
 const message: PlaceOrderMessage = {
   idempotencyKey: '7a5a6c9e-9c3a-4b8a-8e7a-3c2f6b0e1a2d',
@@ -34,7 +34,7 @@ function setup({
   };
   const menu = { findMissingNames: vi.fn().mockResolvedValue(missingNames) };
 
-  const service = new OrderPlacementConsumerService(
+  const service = new OrderPlacementService(
     { transaction } as unknown as DataSource,
     stock as unknown as StockService,
     menu as unknown as MenuService,
@@ -42,7 +42,7 @@ function setup({
   return { service, manager, transaction, stock };
 }
 
-describe('OrderPlacementConsumerService', () => {
+describe('OrderPlacementService', () => {
   it('inserts the order and reserves stock in one transaction', async () => {
     const { service, manager, transaction, stock } = setup();
 

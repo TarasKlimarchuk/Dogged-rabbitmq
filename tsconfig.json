@@ -66,6 +66,12 @@
       ],
       "@app/warehouse-db/*": [
         "./libs/warehouse-db/src/*"
+      ],
+      "@app/outbox": [
+        "./libs/outbox/src/index.ts"
+      ],
+      "@app/outbox/*": [
+        "./libs/outbox/src/*"
       ]
     }
   }

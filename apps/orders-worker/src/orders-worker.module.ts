@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MetricsModule } from '@app/metrics';
-import { Order } from '@app/orders-db';
-import { OrderPlacementConsumerController } from './order-placement-consumer.controller.js';
-import { OrderPlacementConsumerService } from './order-placement-consumer.service.js';
+import { Order, ProcessedMessage } from '@app/orders-db';
+import { OrderPlacementController } from './order-placement/order-placement.controller.js';
+import { OrderPlacementService } from './order-placement/order-placement.service.js';
+import { RestockDeliveredController } from './restock-delivered/restock-delivered.controller.js';
+import { RestockDeliveredService } from './restock-delivered/restock-delivered.service.js';
 import { StockModule } from './stock/stock.module.js';
 import { MenuModule } from './menu/menu.module.js';
 
@@ -21,19 +23,21 @@ import { MenuModule } from './menu/menu.module.js';
         username: config.get<string>('POSTGRES_USER', 'postgres'),
         password: config.get<string>('POSTGRES_PASSWORD', 'postgres'),
         // Same database as orders-management, which owns the schema and runs
-        // the migrations. The consumer never migrates (3 replicas would race).
+        // the migrations. The worker never migrates (replicas would race).
         database: config.get<string>('ORDERS_DB_NAME', 'orders_management'),
         autoLoadEntities: true,
         synchronize: false,
         migrationsRun: false,
       }),
     }),
-    TypeOrmModule.forFeature([Order]),
+    TypeOrmModule.forFeature([Order, ProcessedMessage]),
     MetricsModule, // exposes /metrics and HTTP request metrics
     StockModule,
     MenuModule,
   ],
-  controllers: [OrderPlacementConsumerController],
-  providers: [OrderPlacementConsumerService],
+  // Each controller handles one queue (see main.ts).
+  controllers: [OrderPlacementController, RestockDeliveredController],
+  providers: [OrderPlacementService, RestockDeliveredService],
 })
-export class OrderPlacementConsumerModule {}
+// Every RabbitMQ consumer that writes to the orders database.
+export class OrdersWorkerModule {}

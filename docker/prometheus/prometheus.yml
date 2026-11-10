@@ -27,6 +27,13 @@ scrape_configs:
     static_configs:
       - targets: ['warehouse:3002']
 
+  - job_name: orders-worker
+    dns_sd_configs:
+      # one A record per replica
+      - names: ['orders-worker']
+        type: A
+        port: 3004
+
   - job_name: restock-request-consumer
     dns_sd_configs:
       # one A record per replica

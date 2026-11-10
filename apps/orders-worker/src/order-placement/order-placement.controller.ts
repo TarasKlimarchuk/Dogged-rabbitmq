@@ -1,5 +1,5 @@
 import { Controller, Logger } from '@nestjs/common';
-import { OrderPlacementConsumerService } from './order-placement-consumer.service.js';
+import { OrderPlacementService } from './order-placement.service.js';
 import { Ctx, EventPattern, Payload, RmqContext } from '@nestjs/microservices';
 import {
   ORDER_PATTERNS,
@@ -11,10 +11,10 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 @Controller()
-export class OrderPlacementConsumerController {
-  private readonly logger = new Logger(OrderPlacementConsumerController.name);
+export class OrderPlacementController {
+  private readonly logger = new Logger(OrderPlacementController.name);
 
-  constructor(private readonly service: OrderPlacementConsumerService) {}
+  constructor(private readonly service: OrderPlacementService) {}
 
   @EventPattern<string>(ORDER_PATTERNS.PLACE)
   async handleOrderPlaced(@Payload() payload: unknown, @Ctx() ctx: RmqContext) {

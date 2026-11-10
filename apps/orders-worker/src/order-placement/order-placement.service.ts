@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PlaceOrderMessage } from '@app/contracts/orders';
 import { isUniqueViolation, Order } from '@app/orders-db';
 import { DataSource } from 'typeorm';
-import { MenuService } from './menu/menu.service.js';
-import { StockService } from './stock/stock.service.js';
+import { MenuService } from '../menu/menu.service.js';
+import { StockService } from '../stock/stock.service.js';
 
 export type PlaceOrderOutcome =
   | { kind: 'placed'; orderId: string; inventoryIssue: boolean }
@@ -19,8 +19,8 @@ class OrderRejected extends Error {
 }
 
 @Injectable()
-export class OrderPlacementConsumerService {
-  private readonly logger = new Logger(OrderPlacementConsumerService.name);
+export class OrderPlacementService {
+  private readonly logger = new Logger(OrderPlacementService.name);
 
   constructor(
     private readonly dataSource: DataSource,

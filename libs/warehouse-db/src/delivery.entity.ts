@@ -28,9 +28,6 @@ export class Delivery {
   @Column({ default: false })
   delivered: boolean;
 
-  @Column({ default: false })
-  notifiedOrdersManagement: boolean;
-
   @CreateDateColumn()
   createdAt: Date;
 }

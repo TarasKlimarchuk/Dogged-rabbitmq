@@ -2,8 +2,8 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import type { RmqContext } from '@nestjs/microservices';
 import { ORDERS_DELIVERY_LIMIT, ORDERS_MAX_ATTEMPTS } from '@app/contracts/orders';
-import { OrderPlacementConsumerController } from './order-placement-consumer.controller.js';
-import type { OrderPlacementConsumerService } from './order-placement-consumer.service.js';
+import { OrderPlacementController } from './order-placement.controller.js';
+import type { OrderPlacementService } from './order-placement.service.js';
 
 const validPayload = {
   idempotencyKey: '7a5a6c9e-9c3a-4b8a-8e7a-3c2f6b0e1a2d',
@@ -21,13 +21,13 @@ function setup(
     getChannelRef: () => channel,
     getMessage: () => rawMessage,
   } as unknown as RmqContext;
-  const controller = new OrderPlacementConsumerController({
+  const controller = new OrderPlacementController({
     handleOrderPlaced: handle,
-  } as unknown as OrderPlacementConsumerService);
+  } as unknown as OrderPlacementService);
   return { controller, channel, rawMessage, ctx, handle };
 }
 
-describe('OrderPlacementConsumerController', () => {
+describe('OrderPlacementController', () => {
   beforeEach(() => {
     vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
