@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ChaosModule } from '@app/chaos';
 import { MetricsModule } from '@app/metrics';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
@@ -39,7 +38,6 @@ import { AddProcessedMessages1791462831391 } from './migrations/1791462831391-Ad
         migrationsRun: true,
       }),
     }),
-    ChaosModule,
     MetricsModule,
     MenuModule,
   ],

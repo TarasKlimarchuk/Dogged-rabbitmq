@@ -22,12 +22,6 @@
       "node"
     ],
     "paths": {
-      "@app/chaos": [
-        "./libs/chaos/src/index.ts"
-      ],
-      "@app/chaos/*": [
-        "./libs/chaos/src/*"
-      ],
       "@app/contracts/orders": [
         "./libs/contracts/src/orders/index.ts"
       ],

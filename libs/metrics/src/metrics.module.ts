@@ -7,7 +7,7 @@ import { HttpMetricsInterceptor } from './http-metrics.interceptor.js';
 import { ResilienceMetrics } from './resilience-metrics.js';
 
 // Global so feature modules can inject ResilienceMetrics without each one
-// importing MetricsModule, the same way ChaosModule is shared.
+// importing MetricsModule.
 @Global()
 @Module({
   providers: [

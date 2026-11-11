@@ -48,15 +48,6 @@
         "tsConfigPath": "libs/resilience/tsconfig.lib.json"
       }
     },
-    "chaos": {
-      "type": "library",
-      "root": "libs/chaos",
-      "entryFile": "index",
-      "sourceRoot": "libs/chaos/src",
-      "compilerOptions": {
-        "tsConfigPath": "libs/chaos/tsconfig.lib.json"
-      }
-    },
     "metrics": {
       "type": "library",
       "root": "libs/metrics",

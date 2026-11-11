@@ -1,6 +1,5 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ChaosGuard } from '@app/chaos';
 import { DeliveriesService } from './deliveries.service.js';
 import { DeliveryResponseDto } from './delivery-response.dto.js';
 import { DeliveryDetailsDto } from './delivery-details.dto.js';
@@ -8,7 +7,6 @@ import { ListDeliveriesQueryDto } from './list-deliveries-query.dto.js';
 
 @ApiTags('deliveries')
 @Controller()
-@UseGuards(ChaosGuard)
 export class DeliveriesController {
   constructor(private readonly deliveriesService: DeliveriesService) {}
 

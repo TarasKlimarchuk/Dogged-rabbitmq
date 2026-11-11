@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ChaosModule } from '@app/chaos';
 import { MetricsModule } from '@app/metrics';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
@@ -35,7 +34,6 @@ import { DropNotifiedOrdersManagement1791462833391 } from './migrations/17914628
         migrationsRun: true,
       }),
     }),
-    ChaosModule,
     MetricsModule,
     DeliveriesModule,
   ],
