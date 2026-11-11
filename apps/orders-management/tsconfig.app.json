@@ -5,7 +5,6 @@
     "rootDir": "src"
   },
   "references": [
-    { "path": "../../libs/resilience/tsconfig.lib.json" },
-    { "path": "../../libs/chaos/tsconfig.lib.json" }
+    { "path": "../../libs/resilience/tsconfig.lib.json" }
   ]
 }

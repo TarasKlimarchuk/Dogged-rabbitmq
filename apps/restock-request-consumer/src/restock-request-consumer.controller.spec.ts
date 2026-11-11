@@ -1,0 +1,112 @@
+import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
+import type { RmqContext } from '@nestjs/microservices';
+import {
+  REPLENISHMENTS_DELIVERY_LIMIT,
+  REPLENISHMENTS_MAX_ATTEMPTS,
+} from '@app/contracts/replenishments';
+import { RestockRequestConsumerController } from './restock-request-consumer.controller.js';
+import type { RestockRequestConsumerService } from './restock-request-consumer.service.js';
+
+const validPayload = {
+  messageId: '7a5a6c9e-9c3a-4b8a-8e7a-3c2f6b0e1a2d',
+  terminalId: 'terminal-a',
+  itemName: 'Hot Dog',
+  upToCapacity: 50,
+};
+
+function setup(
+  handle: ReturnType<typeof vi.fn>,
+  headers: Record<string, unknown> = {},
+) {
+  const channel = { ack: vi.fn(), nack: vi.fn(), reject: vi.fn() };
+  const rawMessage = { properties: { headers } };
+  const ctx = {
+    getChannelRef: () => channel,
+    getMessage: () => rawMessage,
+  } as unknown as RmqContext;
+  const controller = new RestockRequestConsumerController({
+    handleRestockRequested: handle,
+  } as unknown as RestockRequestConsumerService);
+  return { controller, channel, rawMessage, ctx, handle };
+}
+
+describe('RestockRequestConsumerController', () => {
+  beforeEach(() => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('acks once the delivery is created', async () => {
+    const { controller, channel, rawMessage, ctx, handle } = setup(
+      vi.fn().mockResolvedValue({ kind: 'created', deliveryId: 'delivery-1' }),
+    );
+
+    await controller.handleRestockRequested(validPayload, ctx);
+
+    expect(handle).toHaveBeenCalledWith(expect.objectContaining(validPayload));
+    expect(channel.ack).toHaveBeenCalledWith(rawMessage);
+    expect(channel.nack).not.toHaveBeenCalled();
+  });
+
+  it('acks a duplicate, since a delivery already exists for it', async () => {
+    const { controller, channel, rawMessage, ctx } = setup(
+      vi.fn().mockResolvedValue({ kind: 'duplicate' }),
+    );
+
+    await controller.handleRestockRequested(validPayload, ctx);
+
+    expect(channel.ack).toHaveBeenCalledWith(rawMessage);
+  });
+
+  it.each([
+    ['a non-uuid messageId', { messageId: 'nope' }],
+    ['a missing upToCapacity', { upToCapacity: undefined }],
+    ['a zero upToCapacity', { upToCapacity: 0 }],
+    ['an empty itemName', { itemName: '' }],
+  ])(
+    'dead-letters a message with %s without calling the service',
+    async (_, override) => {
+      const { controller, channel, rawMessage, ctx, handle } = setup(vi.fn());
+
+      await controller.handleRestockRequested(
+        { ...validPayload, ...override },
+        ctx,
+      );
+
+      expect(handle).not.toHaveBeenCalled();
+      expect(channel.nack).toHaveBeenCalledWith(rawMessage, false, false);
+    },
+  );
+
+  it('requeues on an unexpected error so RabbitMQ can count the delivery', async () => {
+    const { controller, channel, rawMessage, ctx } = setup(
+      vi.fn().mockRejectedValue(new Error('connection refused')),
+    );
+
+    await controller.handleRestockRequested(validPayload, ctx);
+
+    expect(channel.reject).toHaveBeenCalledWith(rawMessage, true);
+    expect(channel.ack).not.toHaveBeenCalled();
+    expect(Logger.prototype.warn).toHaveBeenCalledWith(
+      expect.stringContaining(`attempt 1/${REPLENISHMENTS_MAX_ATTEMPTS}`),
+    );
+  });
+
+  it('logs an error on the final attempt, still leaving the dead-lettering to RabbitMQ', async () => {
+    const { controller, channel, rawMessage, ctx } = setup(
+      vi.fn().mockRejectedValue(new Error('connection refused')),
+      { 'x-delivery-count': REPLENISHMENTS_DELIVERY_LIMIT },
+    );
+
+    await controller.handleRestockRequested(validPayload, ctx);
+
+    expect(Logger.prototype.error).toHaveBeenCalledWith(
+      expect.stringContaining('will move it to the DLQ'),
+      expect.stringContaining('Error: connection refused'),
+    );
+    expect(channel.reject).toHaveBeenCalledWith(rawMessage, true);
+  });
+});

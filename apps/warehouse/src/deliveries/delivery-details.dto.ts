@@ -16,13 +16,6 @@ export class DeliveryDetailsDto {
   @ApiProperty({ enum: ['pending', 'delivered'] })
   status: 'pending' | 'delivered';
 
-  @ApiProperty({
-    description:
-      'Whether orders-management has acknowledged the restock callback. ' +
-      'A delivered delivery with false here means the notification never got through.',
-  })
-  notifiedOrdersManagement: boolean;
-
   @ApiProperty()
   createdAt: Date;
 }

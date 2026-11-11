@@ -22,14 +22,11 @@
       "node"
     ],
     "paths": {
-      "@app/chaos": [
-        "./libs/chaos/src/index.ts"
+      "@app/contracts/orders": [
+        "./libs/contracts/src/orders/index.ts"
       ],
-      "@app/chaos/*": [
-        "./libs/chaos/src/*"
-      ],
-      "@app/contracts": [
-        "./libs/contracts/src/index.ts"
+      "@app/contracts/replenishments": [
+        "./libs/contracts/src/replenishments/index.ts"
       ],
       "@app/contracts/*": [
         "./libs/contracts/src/*"
@@ -57,6 +54,18 @@
       ],
       "@app/orders-db/*": [
         "./libs/orders-db/src/*"
+      ],
+      "@app/warehouse-db": [
+        "./libs/warehouse-db/src/index.ts"
+      ],
+      "@app/warehouse-db/*": [
+        "./libs/warehouse-db/src/*"
+      ],
+      "@app/outbox": [
+        "./libs/outbox/src/index.ts"
+      ],
+      "@app/outbox/*": [
+        "./libs/outbox/src/*"
       ]
     }
   }

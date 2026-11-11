@@ -1,83 +1,62 @@
-import { Registry } from '@prometheus-io/client';
-import { ResilienceMetrics } from '@app/metrics';
-import type { Repository } from 'typeorm';
-import type { HttpService } from '@nestjs/axios';
-import type { ConfigService } from '@nestjs/config';
+import type { DataSource, EntityManager, Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
-import { of, throwError } from 'rxjs';
+import { REPLENISHMENT_PATTERNS } from '@app/contracts/replenishments';
+import type { OutboxService } from '@app/outbox';
+import { Delivery } from '@app/warehouse-db';
 import { DeliveriesService } from './deliveries.service.js';
-import type { Delivery } from './delivery.entity.js';
 
-const metrics = new ResilienceMetrics(new Registry());
+const pending: Delivery = {
+  id: 'delivery-1',
+  restockRequestId: null,
+  terminalId: 'terminal-a',
+  itemName: 'Hot Dog',
+  quantity: 50,
+  delivered: false,
+  createdAt: new Date('2026-10-10T10:00:00Z'),
+};
+const delivered: Delivery = { ...pending, id: 'delivery-2', delivered: true };
 
-function createRepo(overrides: Partial<Repository<Delivery>> = {}): Repository<Delivery> {
-  return {
-    create: vi.fn((data: Partial<Delivery>) => data),
-    save: vi.fn((data: Partial<Delivery>) => Promise.resolve({ id: 'delivery-1', delivered: false, ...data })),
-    findOneBy: vi.fn(),
-    update: vi.fn(),
-    ...overrides,
-  } as unknown as Repository<Delivery>;
-}
-
-function createHttp(post: ReturnType<typeof vi.fn>): HttpService {
-  return { post } as unknown as HttpService;
-}
-
-function createConfig(): ConfigService {
-  return { get: () => 'http://orders-management:3001' } as unknown as ConfigService;
+function setup({
+  find = vi.fn(),
+  update = vi.fn().mockResolvedValue({ affected: 1 }),
+  findOneBy = vi.fn().mockResolvedValue({ ...pending, delivered: true }),
+  enqueue = vi.fn().mockResolvedValue('message-id'),
+} = {}) {
+  const repo = { find } as unknown as Repository<Delivery>;
+  const manager = { update, findOneBy };
+  // Like the real one: runs the callback with a manager and rejects if it
+  // throws (which is what makes TypeORM roll back).
+  const transaction = vi.fn(
+    async (work: (m: EntityManager) => Promise<unknown>) =>
+      work(manager as unknown as EntityManager),
+  );
+  const outbox = { enqueue };
+  const service = new DeliveriesService(
+    repo,
+    { transaction } as unknown as DataSource,
+    outbox as unknown as OutboxService,
+  );
+  return { service, manager, transaction, outbox };
 }
 
 describe('DeliveriesService', () => {
-  it('requestRestock() ships the full amount asked for and returns a pending delivery', async () => {
-    const repo = createRepo();
-    const service = new DeliveriesService(repo, createHttp(vi.fn()), createConfig(), metrics);
-
-    const result = await service.requestRestock({
-      terminalId: 'terminal-a',
-      itemName: 'Hot Dog',
-      upToCapacity: 50,
-    });
-
-    expect(result).toEqual({ deliveryId: 'delivery-1', status: 'pending' });
-    expect(repo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ terminalId: 'terminal-a', itemName: 'Hot Dog', quantity: 50 }),
-    );
-  });
-
   describe('findAll()', () => {
-    const pending: Delivery = {
-      id: 'delivery-1',
-      terminalId: 'terminal-a',
-      itemName: 'Hot Dog',
-      quantity: 50,
-      delivered: false,
-      notifiedOrdersManagement: false,
-      createdAt: new Date('2026-10-10T10:00:00Z'),
-    };
-    const delivered: Delivery = {
-      ...pending,
-      id: 'delivery-2',
-      delivered: true,
-      notifiedOrdersManagement: true,
-    };
-
     it('maps deliveries to status-bearing details, newest first, with no filter by default', async () => {
       const find = vi.fn().mockResolvedValue([delivered, pending]);
-      const service = new DeliveriesService(createRepo({ find }), createHttp(vi.fn()), createConfig(), metrics);
+      const { service } = setup({ find });
 
       const result = await service.findAll();
 
       expect(find).toHaveBeenCalledWith({ where: {}, order: { createdAt: 'DESC' } });
       expect(result).toEqual([
-        expect.objectContaining({ deliveryId: 'delivery-2', status: 'delivered', notifiedOrdersManagement: true }),
-        expect.objectContaining({ deliveryId: 'delivery-1', status: 'pending', notifiedOrdersManagement: false }),
+        expect.objectContaining({ deliveryId: 'delivery-2', status: 'delivered' }),
+        expect.objectContaining({ deliveryId: 'delivery-1', status: 'pending' }),
       ]);
     });
 
     it('filters to pending deliveries', async () => {
       const find = vi.fn().mockResolvedValue([pending]);
-      const service = new DeliveriesService(createRepo({ find }), createHttp(vi.fn()), createConfig(), metrics);
+      const { service } = setup({ find });
 
       await service.findAll('pending');
 
@@ -89,7 +68,7 @@ describe('DeliveriesService', () => {
 
     it('filters to delivered deliveries', async () => {
       const find = vi.fn().mockResolvedValue([delivered]);
-      const service = new DeliveriesService(createRepo({ find }), createHttp(vi.fn()), createConfig(), metrics);
+      const { service } = setup({ find });
 
       await service.findAll('delivered');
 
@@ -100,92 +79,64 @@ describe('DeliveriesService', () => {
     });
   });
 
-  it('confirmDelivery() throws NotFoundException for an unknown delivery', async () => {
-    const repo = createRepo({ findOneBy: vi.fn().mockResolvedValue(null) });
-    const service = new DeliveriesService(repo, createHttp(vi.fn()), createConfig(), metrics);
+  describe('confirmDelivery()', () => {
+    it('claims the delivery and enqueues restock_delivered in the same transaction', async () => {
+      const { service, manager, transaction, outbox } = setup();
 
-    await expect(service.confirmDelivery('missing')).rejects.toThrow(NotFoundException);
-  });
+      const result = await service.confirmDelivery('delivery-1');
 
-  it('confirmDelivery() marks delivered and notifies orders-management without blocking the response', async () => {
-    const delivery: Delivery = {
-      id: 'delivery-1',
-      terminalId: 'terminal-a',
-      itemName: 'Hot Dog',
-      quantity: 50,
-      delivered: false,
-      notifiedOrdersManagement: false,
-      createdAt: new Date(),
-    };
-    const findOneBy = vi.fn().mockResolvedValue(delivery);
-    const update = vi.fn().mockResolvedValue({ affected: 1 });
-    const repo = createRepo({ findOneBy, update });
-    const post = vi.fn().mockReturnValue(of({}));
-    const service = new DeliveriesService(repo, createHttp(post), createConfig(), metrics);
-
-    const result = await service.confirmDelivery('delivery-1');
-
-    expect(result).toEqual({ deliveryId: 'delivery-1', status: 'delivered' });
-    await vi.waitFor(() => {
-      expect(post).toHaveBeenCalledWith('http://orders-management:3001/stock/restock-callback', {
-        terminalId: 'terminal-a',
-        itemName: 'Hot Dog',
-        quantity: 50,
-      });
-    });
-    await vi.waitFor(() => {
-      expect(update).toHaveBeenCalledWith(
-        { id: 'delivery-1' },
-        { notifiedOrdersManagement: true },
+      expect(result).toEqual({ deliveryId: 'delivery-1', status: 'delivered' });
+      expect(transaction).toHaveBeenCalledTimes(1);
+      // only flips a delivery that is still pending
+      expect(manager.update).toHaveBeenCalledWith(
+        Delivery,
+        { id: 'delivery-1', delivered: false },
+        { delivered: true },
+      );
+      // same manager → the message commits (or rolls back) with the claim
+      expect(outbox.enqueue).toHaveBeenCalledWith(
+        manager,
+        REPLENISHMENT_PATTERNS.RESTOCK_DELIVERED,
+        {
+          deliveryId: 'delivery-1',
+          terminalId: 'terminal-a',
+          itemName: 'Hot Dog',
+          quantity: 50,
+        },
       );
     });
-  });
 
-  it('confirmDelivery() is idempotent — confirming an already-delivered delivery does not re-notify', async () => {
-    const delivery: Delivery = {
-      id: 'delivery-1',
-      terminalId: 'terminal-a',
-      itemName: 'Hot Dog',
-      quantity: 50,
-      delivered: true,
-      notifiedOrdersManagement: true,
-      createdAt: new Date(),
-    };
-    const findOneBy = vi.fn().mockResolvedValue(delivery);
-    const post = vi.fn();
-    const repo = createRepo({ findOneBy });
-    const service = new DeliveriesService(repo, createHttp(post), createConfig(), metrics);
+    it('is idempotent: an already-delivered delivery is not enqueued again', async () => {
+      const { service, outbox } = setup({
+        update: vi.fn().mockResolvedValue({ affected: 0 }),
+      });
 
-    const result = await service.confirmDelivery('delivery-1');
+      const result = await service.confirmDelivery('delivery-1');
 
-    expect(result).toEqual({ deliveryId: 'delivery-1', status: 'delivered' });
-    expect(post).not.toHaveBeenCalled();
-  });
-
-  it('does not throw and leaves notifiedOrdersManagement unset when the callback keeps failing', async () => {
-    const delivery: Delivery = {
-      id: 'delivery-1',
-      terminalId: 'terminal-a',
-      itemName: 'Hot Dog',
-      quantity: 50,
-      delivered: false,
-      notifiedOrdersManagement: false,
-      createdAt: new Date(),
-    };
-    const findOneBy = vi.fn().mockResolvedValue(delivery);
-    const update = vi.fn();
-    const repo = createRepo({ findOneBy, update });
-    const post = vi.fn().mockReturnValue(throwError(() => new Error('orders-management down')));
-    const service = new DeliveriesService(repo, createHttp(post), createConfig(), metrics);
-
-    await expect(service.confirmDelivery('delivery-1')).resolves.toEqual({
-      deliveryId: 'delivery-1',
-      status: 'delivered',
+      expect(result).toEqual({ deliveryId: 'delivery-1', status: 'delivered' });
+      expect(outbox.enqueue).not.toHaveBeenCalled();
     });
 
-    await vi.waitFor(() => {
-      expect(post).toHaveBeenCalled();
+    it('throws NotFoundException for an unknown delivery', async () => {
+      const { service, outbox } = setup({
+        update: vi.fn().mockResolvedValue({ affected: 0 }),
+        findOneBy: vi.fn().mockResolvedValue(null),
+      });
+
+      await expect(service.confirmDelivery('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(outbox.enqueue).not.toHaveBeenCalled();
     });
-    expect(update).not.toHaveBeenCalled();
+
+    it('lets an outbox failure propagate so the claim rolls back too', async () => {
+      const { service } = setup({
+        enqueue: vi.fn().mockRejectedValue(new Error('db down')),
+      });
+
+      await expect(service.confirmDelivery('delivery-1')).rejects.toThrow(
+        'db down',
+      );
+    });
   });
 });

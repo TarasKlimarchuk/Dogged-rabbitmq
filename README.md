@@ -1,147 +1,143 @@
-# Dogged
+# Dogged · RabbitMQ
 
-A resilient multi-service system built on a hot dog vendor domain. Three NestJS services talk to each other over real HTTP inside Docker, and each call is protected by the stability patterns from Michael Nygard's *Release It!*: timeouts, retry with exponential backoff and jitter, circuit breakers, idempotency, and fallbacks. You can break the services on purpose with built-in fault injection and watch the patterns react.
+A multi-service NestJS system for a hot dog vendor, built to study how a message broker makes services more reliable. It continues the *Dogged* project, where every service talked over REST. Here REST stays only where a caller needs an answer straight away (reading the menu). Everything else goes through **RabbitMQ**:
 
-*Dogged*, as in persistent: it keeps going when its dependencies don't.
+- **Reliability.** An accepted order is never lost, even if the service that stores it is down. Messages wait in a durable queue until a consumer can handle them.
+- **Background work.** The customer doesn't wait while stock is updated or a restock is arranged. Workers do that work after the response has been sent.
 
 ## Contents
 
+- [Quick start](#quick-start)
 - [Architecture](#architecture)
-- [Resilience patterns](#resilience-patterns)
-- [Running it](#running-it)
-- [See it work: a chaos walkthrough](#see-it-work-a-chaos-walkthrough)
-- [Testing](#testing)
-- [Known limitations](#known-limitations)
+- [How the flows work](#how-the-flows-work)
+- [Reliability guarantees](#reliability-guarantees)
 
-## Architecture
+## Quick start
 
-| Service | Role | Storage |
-|---|---|---|
-| `terminal` (`:3000`) | The vendor's cart. Serves the menu and takes orders, calling `orders-management`. In a real system this would be client. | SQLite file (local menu cache) |
-| `orders-management` (`:3001`) | The shared backend: menu catalog, idempotent orders, per-terminal stock, restock requests. | Postgres `orders_management` |
-| `warehouse` (`:3002`) | Fulfils restock requests (stock is treated as infinite) and tracks deliveries. | Postgres `warehouse` |
-
-Shared code lives in two libraries: `libs/resilience` (retry, breaker and timeout policies built on [cockatiel](https://github.com/connor4312/cockatiel)) and `libs/chaos` (fault injection).
-
-```mermaid
-flowchart LR
-    T[terminal] -- "GET /menu · POST /orders<br/>retry + timeout (+ breaker for orders)" --> O[orders-management]
-    O -- "POST /restock<br/>retry + breaker + timeout" --> W[warehouse]
-    W -- "POST /stock/restock-callback<br/>retry + breaker + timeout" --> O
-    O --- P[(Postgres)]
-    W --- P
-```
-
-### Network topology
-
-Two Docker networks enforce the topology at the infrastructure level, not just in application code:
-
-- `edge-net`: `terminal` and `orders-management`
-- `backend-net`: `orders-management`, `warehouse` and `postgres`
-
-`terminal` is not attached to `backend-net`, so it cannot even resolve the names `warehouse` or `postgres`. `orders-management` sits on both networks and is the only path between them.
-
-### A restock, end to end
-
-```mermaid
-sequenceDiagram
-    participant T as terminal
-    participant O as orders-management
-    participant W as warehouse
-    participant C as courier
-    T->>O: POST /orders (idempotencyKey, items)
-    O->>O: validate items, atomically decrement stock
-    O-->>T: 201 accepted
-    Note over O: stock fell below 30% of capacity
-    O->>W: POST /restock (retry + breaker)
-    W-->>O: 201 delivery pending
-    Note over C: delivery takes real time
-    C->>W: POST /deliveries/:id/confirm
-    W->>O: POST /stock/restock-callback (retry + breaker)
-    O->>O: quantity updated, restock flag cleared
-```
-
-## Resilience patterns
-
-Every cross-service call goes through a shared policy from `libs/resilience`. Policies stack as **retry (outer) → circuit breaker → timeout (inner)**, applied per attempt.
-
-| Call | Policy | When it fails |
-|---|---|---|
-| `terminal` → `GET /menu` | 2s timeout, 3 retries with jittered exponential backoff (scale 500ms) | Falls back to the last good menu in a local SQLite cache, then to a built-in default menu. A background loop keeps retrying and refreshes the cache once the backend returns. |
-| `terminal` → `POST /orders` | Same, scale 1000ms, plus a circuit breaker (opens after 3 consecutive failures, probes again after 30s) | Returns `503`. There is deliberately no fallback: an order can't be faked. |
-| `orders-management` → `POST /restock` | Retry + breaker + timeout, fire-and-forget | Logged, and the "restock pending" claim is released so the next low-stock check can try again. The customer's order is never affected. |
-| `warehouse` → `POST /stock/restock-callback` | Retry + breaker + timeout, fire-and-forget | Logged. The delivery stays recorded with `notifiedOrdersManagement: false`, visible via `GET /deliveries`. |
-
-Details that make the policies behave correctly:
-
-- **Only retryable errors are retried.** A `4xx` means the server rejected this specific request and would reject it again, so it is passed straight through to the caller and doesn't count against the breaker. Network errors, timeouts and `5xx` are retried (`isRetryableHttpError`).
-- **An open breaker fails fast.** Retry sits outside the breaker, so it would otherwise treat the breaker's instant rejection as retryable and sleep through its whole backoff schedule. It explicitly refuses to retry a broken circuit, so rejections take milliseconds.
-- **Backoff is tunable per call site** (`initialDelayMs`, `maxDelayMs`). Jitter spreads retries out so clients don't retry in lockstep.
-- **Idempotency.** The caller supplies an `idempotencyKey` (UUID) that is carried through every layer and used as the order's primary key, so a retried request returns the original order instead of creating a duplicate. A concurrent duplicate that loses the insert race is caught (Postgres unique violation) and resolved to the existing order.
-- **Graceful degradation.** If a terminal doesn't have enough stock, the order is still accepted and the response carries an `inventoryWarning`.
-
-## Running it
+Requirements: Docker with Compose v2. Node.js is only needed if you want to run services or tests outside Docker.
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Migrations run automatically on boot and seed the menu plus stock for the terminals listed in `KNOWN_TERMINAL_IDS`.
+On first boot Postgres creates the `orders_management` and `warehouse` databases. `orders-management` and `warehouse` then run their migrations, which seed the menu and give every terminal in `KNOWN_TERMINAL_IDS` a stock of 50 per item.
 
-- Terminal: http://localhost:3000/docs
-- Orders Management: http://localhost:3001/docs
-- Warehouse: http://localhost:3002/docs
+| What | URL |
+|---|---|
+| Terminal API (Swagger) | http://localhost:3000/docs |
+| Orders Management API (Swagger) | http://localhost:3001/docs |
+| Warehouse API (Swagger) | http://localhost:3002/docs |
+| RabbitMQ management UI | http://localhost:15672 (`guest` / `guest`) |
+| Grafana | http://localhost:9000 (`admin` / `admin` on first login) |
+| Prometheus | http://localhost:9090 |
+| Alertmanager | http://localhost:9093 |
 
-Every service exposes Swagger at `/docs`. An importable Postman collection is in [`postman/dogged.postman_collection.json`](postman/dogged.postman_collection.json) (it uses `{{$guid}}` for idempotency keys).
+Stop everything with `docker compose down`. Add `-v` to also delete the data volumes and start fresh.
 
-### Without Docker
+## Architecture
 
-```bash
-npm install
-npm run start:terminal:dev
-npm run start:orders-management:dev   # needs Postgres
-npm run start:warehouse:dev           # needs Postgres
+### Services
+
+| Service | Kind | Role | Database |
+|---|---|---|---|
+| `terminal` (`:3000`) | HTTP | The vendor's cart, standing in for a client app. Serves the menu and accepts orders. | Local SQLite file (menu cache) |
+| `orders-management` (`:3001`) | HTTP | Menu catalog. Owns the `orders_management` schema and runs its migrations. | `orders_management` |
+| `orders-worker` (×2) | RabbitMQ consumer | Records orders, reserves stock, requests restocks, and applies confirmed deliveries. | `orders_management` |
+| `restock-request-consumer` (×2) | RabbitMQ consumer | Turns restock requests into pending deliveries. | `warehouse` |
+| `warehouse` (`:3002`) | HTTP | Lists deliveries and lets a courier confirm them. Owns the `warehouse` schema. | `warehouse` |
+
+The workers have no business endpoints. Their HTTP port only serves `/metrics`, on `3004` for `orders-worker` and `3005` for `restock-request-consumer`. They share a database with the service that owns the schema and never run migrations themselves, because two replicas migrating at once would race.
+
+### Queues
+
+All queues are durable **quorum queues**. Each main queue has a dead-letter queue (DLQ) that collects messages that can't be processed.
+
+| Queue | Pattern | Producer | Consumer | DLQ |
+|---|---|---|---|---|
+| `orders_queue` | `order.place` | `terminal` | `orders-worker` | `orders_queue.dlq` |
+| `replenishments_queue` | `replenishment.restock_requested` | `orders-worker` (outbox) | `restock-request-consumer` | `replenishments_queue.dlq` |
+| `restock_deliveries_queue` | `replenishment.restock_delivered` | `warehouse` (outbox) | `orders-worker` | `restock_deliveries_queue.dlq` |
+
+Queue names, options and message classes live in `libs/contracts`, and producers and consumers both import them from there. That matters because RabbitMQ refuses to declare a queue a second time with different arguments (`PRECONDITION_FAILED`).
+
+### Shared libraries
+
+| Library | Purpose |
+|---|---|
+| `libs/contracts` | Message patterns, payload classes (validated with `class-validator`), queue names and options |
+| `libs/outbox` | Transactional outbox: `OutboxService.enqueue()` plus a background `OutboxRelay` that publishes |
+| `libs/orders-db`, `libs/warehouse-db` | TypeORM entities shared by each HTTP service and its worker |
+| `libs/resilience` | Retry, circuit breaker and timeout policies built on [cockatiel](https://github.com/connor4312/cockatiel) |
+| `libs/metrics` | `/metrics` endpoint, HTTP metrics and resilience metrics for Prometheus |
+| `libs/utils` | Small helpers, such as `deliveryAttempt()` (reads `x-delivery-count`) and validation error formatting |
+
+## How the flows work
+
+### Placing an order
+
+1. `terminal` validates the body, adds its own `TERMINAL_ID` and publishes the message. The publish runs through a retry and circuit breaker policy. If the broker can't be reached it answers `503`, and the customer can safely retry with the same `idempotencyKey`.
+2. `202 Accepted` means *the broker has the order*, not that it has been stored yet. Storing it happens in the background.
+3. `orders-worker` validates the payload and checks that every item is on the menu. Then, in a single transaction, it:
+   - inserts the order, using `idempotencyKey` as the primary key,
+   - decrements stock atomically, never going below 0. If a terminal didn't have enough, the order is still accepted and flagged with `inventoryIssue`,
+   - schedules a restock if stock fell below **30% of capacity** (see below).
+
+### Restocking a terminal
+
+```mermaid
+sequenceDiagram
+    participant OW as orders-worker
+    participant RQ as replenishments_queue
+    participant RC as restock-request-consumer
+    participant WH as warehouse
+    participant DQ as restock_deliveries_queue
+    participant K as courier
+    OW->>OW: stock < 30% → set restockPending, write outbox row (same tx)
+    OW-->>RQ: OutboxRelay publishes restock_requested
+    RQ->>RC: deliver
+    RC->>RC: insert pending delivery (dedup on messageId)
+    K->>WH: POST /deliveries/:id/confirm
+    WH->>WH: mark delivered, write outbox row (same tx)
+    WH-->>DQ: OutboxRelay publishes restock_delivered
+    DQ->>OW: deliver
+    OW->>OW: record messageId, add stock (capped at capacity),<br/>clear restockPending (same tx)
 ```
 
-Outside Docker, override `POSTGRES_HOST=localhost` and point `ORDERS_MANAGEMENT_URL` / `WAREHOUSE_URL` at `http://localhost:<port>`.
+- `restockPending` is claimed with a conditional `UPDATE`, so a terminal has at most one restock in flight per item, no matter how many orders arrive at once.
+- The warehouse treats its own stock as infinite. Every request becomes a delivery that fills the terminal back up to capacity.
+- The courier is simulated by calling `POST /deliveries/:id/confirm`. Confirming is idempotent: a second confirm doesn't publish another event.
 
-## See it work: a chaos walkthrough
+## Reliability guarantees
 
-`orders-management` and `warehouse` each expose `POST /admin/chaos`, which makes their business endpoints fail or slow down on demand. The chaos endpoint itself and the health checks are never affected.
+### Transactional outbox
 
-```bash
-# 1. Make orders-management fail every request
-curl -X POST localhost:3001/admin/chaos -H 'Content-Type: application/json' \
-  -d '{"enabled":true,"mode":"error","failureRate":1}'
+Services that write to a database *and* publish a message never publish directly. If they did, a crash between the two steps would either lose the message or announce a change that was rolled back. Instead:
 
-# 2. The menu degrades gracefully: served from the local cache after retries
-curl localhost:3000/menu                 # "source": "cache"
+1. The business change and an `outbox_message` row are written in **the same transaction**, through `OutboxService.enqueue(manager, pattern, payload)`.
+2. `OutboxRelay` polls every 2 seconds, takes up to 50 unpublished rows with `FOR UPDATE SKIP LOCKED` (so replicas don't pick the same rows), publishes them and sets `publishedAt`.
+3. A failed publish increments `attempts` and records `lastError`. A row stops being retried after 20 attempts.
 
-# 3. Orders fail after retries; the breaker then opens...
-curl -X POST localhost:3000/orders -H 'Content-Type: application/json' \
-  -d '{"idempotencyKey":"'$(uuidgen)'","items":[{"name":"Hot Dog","quantity":1}]}'   # 503 after a few seconds
+This gives **at-least-once** delivery: a message can be published twice if the relay crashes after publishing but before marking the row. That's why every consumer is idempotent.
 
-# 4. ...and further orders are rejected in milliseconds, not seconds
-# 5. Turn chaos off; after the 30s half-open window the breaker closes again
-curl -X POST localhost:3001/admin/chaos -H 'Content-Type: application/json' -d '{"enabled":false}'
-```
+### Idempotent consumers
 
-Modes: `error` (fails a `failureRate` fraction of requests with `503`) and `delay` (adds `delayMs` to every request, to exercise timeouts).
+| Consumer | How it detects a repeat |
+|---|---|
+| `order.place` | The order's primary key is the client's `idempotencyKey`. A unique violation means "already placed", so the message is acked and ignored. |
+| `restock_requested` | `deliveries.restockRequestId` is unique (it holds the outbox `messageId`). `INSERT … ON CONFLICT DO NOTHING` creates nothing the second time. |
+| `restock_delivered` | Adding stock isn't idempotent, so `orders-worker` keeps an **inbox** (`processed_messages`). The `messageId` is inserted in the same transaction as the stock change. If it's already there, the message is skipped. |
 
-## Testing
+### Acknowledgements, retries and the DLQ
 
-```bash
-npm test          # unit tests (vitest)
-npm run lint      # oxlint
-npm run build:all
-```
+Consumers use manual acks (`noAck: false`, `prefetchCount: 10`). Every handler follows the same rules:
 
-Specs that exercise the real retry and breaker policies use fake timers, so the suite runs in a couple of seconds despite multi-second backoffs.
+| Outcome | Action | Result |
+|---|---|---|
+| Success, or a duplicate | `ack` | Message removed |
+| Invalid payload, or a business rejection (unknown menu item, no stock row) | `nack` without requeue | Straight to the DLQ: retrying can't fix it |
+| Unexpected error (database down, timeout, …) | `reject` with requeue | Delivered again |
 
-## Known limitations
+Quorum queues count redeliveries in `x-delivery-count`. After **5 requeues (6 attempts in total)**, `x-delivery-limit` makes RabbitMQ dead-letter the message instead of looping forever. The final attempt is logged as an error together with its stack trace.
 
-- **Resilience state is per instance.** Breaker state and chaos settings are in memory, so with several replicas each one has its own.
-- **No reconciliation job.** If a delivery's callback to `orders-management` ultimately fails, it is logged and flagged (`notifiedOrdersManagement: false`) but not retried later.
-- **One terminal service in Compose.** The data model supports several terminals (`KNOWN_TERMINAL_IDS`), but `docker-compose.yml` runs a single one.
-- **The generated e2e specs are placeholders** and are not part of the passing suite.
+DLQs are declared explicitly in each service's `main.ts` before the app starts, because declaring the main queue doesn't create its DLQ, and a dead letter with nowhere to go is silently dropped.

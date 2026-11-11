@@ -1,28 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ChaosGuard } from '@app/chaos';
+import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DeliveriesService } from './deliveries.service.js';
-import { RestockRequestDto } from './restock-request.dto.js';
 import { DeliveryResponseDto } from './delivery-response.dto.js';
 import { DeliveryDetailsDto } from './delivery-details.dto.js';
 import { ListDeliveriesQueryDto } from './list-deliveries-query.dto.js';
 
 @ApiTags('deliveries')
 @Controller()
-@UseGuards(ChaosGuard)
 export class DeliveriesController {
   constructor(private readonly deliveriesService: DeliveriesService) {}
-
-  @Post('restock')
-  @ApiOperation({
-    summary:
-      'Accept a restock request from orders-management. Warehouse stock is ' +
-      'treated as infinite, so this always ships the full requested amount.',
-  })
-  @ApiCreatedResponse({ type: DeliveryResponseDto })
-  requestRestock(@Body() dto: RestockRequestDto): Promise<DeliveryResponseDto> {
-    return this.deliveriesService.requestRestock(dto);
-  }
 
   @Get('deliveries')
   @ApiOperation({
@@ -37,8 +23,9 @@ export class DeliveriesController {
   @Post('deliveries/:id/confirm')
   @ApiOperation({
     summary:
-      'Simulates the courier confirming a delivery. Notifies orders-management ' +
-      'through retry + circuit breaker, without blocking this response on it.',
+      'Simulates the courier confirming a delivery. Idempotent. The ' +
+      'restock_delivered event is written to an outbox in the same ' +
+      'transaction and published to RabbitMQ in the background.',
   })
   @ApiOkResponse({ type: DeliveryResponseDto })
   confirmDelivery(@Param('id') id: string): Promise<DeliveryResponseDto> {

@@ -30,25 +30,47 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-  order-placement-consumer:
+  orders-worker:
     build:
       context: .
-      dockerfile: apps/order-placement-consumer/Dockerfile
+      dockerfile: apps/orders-worker/Dockerfile
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       ORDERS_DB_NAME: ${ORDERS_DB_NAME}
-      WAREHOUSE_URL: ${WAREHOUSE_URL}
     deploy:
-      replicas: 3
-    networks: [orders-management, warehouse, postgres]
+      replicas: 2
+    networks: [orders-management, postgres]
     depends_on:
       postgres:
         condition: service_healthy
       orders-management:
         condition: service_started
+      rabbitMQ:
+        condition: service_healthy
+  restock-request-consumer:
+    build:
+      context: .
+      dockerfile: apps/restock-request-consumer/Dockerfile
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      WAREHOUSE_DB_NAME: ${WAREHOUSE_DB_NAME}
+    deploy:
+      replicas: 2
+    networks: [orders-management, warehouse, postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # warehouse runs the migrations on the shared database
+      warehouse:
+        condition: service_started
+      rabbitMQ:
+        condition: service_healthy
   postgres:
     image: postgres:16-alpine
     environment:
@@ -86,9 +108,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       WAREHOUSE_DB_NAME: ${WAREHOUSE_DB_NAME}
-      ORDERS_MANAGEMENT_URL: ${ORDERS_MANAGEMENT_URL}
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitMQ:
         condition: service_healthy
     ports:
       - "127.0.0.1:3002:3002"
@@ -104,13 +127,21 @@ services:
     networks: [orders-management, warehouse, monitoring]
   rabbitMQ:
     image: rabbitmq:4.4.0-management-alpine
+    # services connect to RabbitMQ in main.ts and exit if it isn't accepting
+    # connections yet, so they wait for this instead of service_started
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     ports:
       - "127.0.0.1:15672:15672"
       - "127.0.0.1:5672:5672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
       - rabbitmq_logs:/var/log/rabbitmq
-    networks: [orders-management]
+    # warehouse publishes confirmed deliveries through it
+    networks: [orders-management, warehouse]
   loki:
     image: grafana/loki:3.5.12
     command: -config.file=/etc/loki/loki-config.yml

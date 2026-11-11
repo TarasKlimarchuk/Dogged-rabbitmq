@@ -1,13 +1,11 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { ChaosGuard } from '@app/chaos';
 import { MenuService } from './menu.service.js';
 import { CreateMenuItemDto } from './create-menu-item.dto.js';
 import { MenuItemResponseDto, MenuListResponseDto } from './menu-item-response.dto.js';
 
 @ApiTags('menu')
 @Controller('menu')
-@UseGuards(ChaosGuard)
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}
 

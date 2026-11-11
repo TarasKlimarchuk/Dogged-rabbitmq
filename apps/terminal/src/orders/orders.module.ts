@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { ORDERS_QUEUE, ORDERS_QUEUE_OPTIONS } from '@app/contracts';
+import { ORDERS_QUEUE, ORDERS_QUEUE_OPTIONS } from '@app/contracts/orders';
 import { OrdersController } from './orders.controller.js';
 import { OrdersService } from './orders.service.js';
 

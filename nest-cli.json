@@ -48,15 +48,6 @@
         "tsConfigPath": "libs/resilience/tsconfig.lib.json"
       }
     },
-    "chaos": {
-      "type": "library",
-      "root": "libs/chaos",
-      "entryFile": "index",
-      "sourceRoot": "libs/chaos/src",
-      "compilerOptions": {
-        "tsConfigPath": "libs/chaos/tsconfig.lib.json"
-      }
-    },
     "metrics": {
       "type": "library",
       "root": "libs/metrics",
@@ -75,13 +66,13 @@
         "tsConfigPath": "libs/contracts/tsconfig.lib.json"
       }
     },
-    "order-placement-consumer": {
+    "orders-worker": {
       "type": "application",
-      "root": "apps/order-placement-consumer",
+      "root": "apps/orders-worker",
       "entryFile": "main",
-      "sourceRoot": "apps/order-placement-consumer/src",
+      "sourceRoot": "apps/orders-worker/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/order-placement-consumer/tsconfig.app.json",
+        "tsConfigPath": "apps/orders-worker/tsconfig.app.json",
         "builder": "rspack"
       }
     },
@@ -101,6 +92,34 @@
       "sourceRoot": "libs/orders-db/src",
       "compilerOptions": {
         "tsConfigPath": "libs/orders-db/tsconfig.lib.json"
+      }
+    },
+    "warehouse-db": {
+      "type": "library",
+      "root": "libs/warehouse-db",
+      "entryFile": "index",
+      "sourceRoot": "libs/warehouse-db/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/warehouse-db/tsconfig.lib.json"
+      }
+    },
+    "restock-request-consumer": {
+      "type": "application",
+      "root": "apps/restock-request-consumer",
+      "entryFile": "main",
+      "sourceRoot": "apps/restock-request-consumer/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/restock-request-consumer/tsconfig.app.json",
+        "builder": "rspack"
+      }
+    },
+    "outbox": {
+      "type": "library",
+      "root": "libs/outbox",
+      "entryFile": "index",
+      "sourceRoot": "libs/outbox/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/outbox/tsconfig.lib.json"
       }
     }
   }

@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ChaosModule } from '@app/chaos';
 import { MetricsModule } from '@app/metrics';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { DeliveriesModule } from './deliveries/deliveries.module.js';
 import { InitialSchema1791462830391 } from './migrations/1791462830391-InitialSchema.js';
+import { AddRestockRequestId1791462831391 } from './migrations/1791462831391-AddRestockRequestId.js';
+import { AddOutbox1791462832391 } from './migrations/1791462832391-AddOutbox.js';
+import { DropNotifiedOrdersManagement1791462833391 } from './migrations/1791462833391-DropNotifiedOrdersManagement.js';
 
 @Module({
   imports: [
@@ -23,11 +25,15 @@ import { InitialSchema1791462830391 } from './migrations/1791462830391-InitialSc
         database: config.get<string>('WAREHOUSE_DB_NAME', 'warehouse'),
         autoLoadEntities: true,
         synchronize: false,
-        migrations: [InitialSchema1791462830391],
+        migrations: [
+          InitialSchema1791462830391,
+          AddRestockRequestId1791462831391,
+          AddOutbox1791462832391,
+          DropNotifiedOrdersManagement1791462833391,
+        ],
         migrationsRun: true,
       }),
     }),
-    ChaosModule,
     MetricsModule,
     DeliveriesModule,
   ],

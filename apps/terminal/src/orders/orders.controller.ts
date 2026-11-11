@@ -7,7 +7,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { OrdersService } from './orders.service.js';
-import { CreateOrderDto } from '@app/contracts/create-order.dto.js';
+import { CreateOrderDto } from '@app/contracts/orders/create-order.dto.js';
 import { OrderResponseDto } from './order-response.dto.js';
 
 @ApiTags('orders')
