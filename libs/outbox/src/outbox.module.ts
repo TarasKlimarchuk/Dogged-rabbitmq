@@ -1,7 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
 import type { RmqOptions } from '@nestjs/microservices';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { OutboxMessage } from './outbox-message.entity.js';
 import { OUTBOX_CLIENT } from './outbox.constants.js';

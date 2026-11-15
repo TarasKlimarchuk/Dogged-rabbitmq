@@ -10,6 +10,7 @@ import { DataSource } from 'typeorm';
 import { lastValueFrom } from 'rxjs';
 import { OutboxMessage } from './outbox-message.entity.js';
 import { OUTBOX_CLIENT } from './outbox.constants.js';
+import { OutboxMetrics } from '@app/metrics';
 
 export const OUTBOX_POLL_INTERVAL_MS = 2000;
 export const OUTBOX_BATCH_SIZE = 50;
@@ -24,6 +25,7 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly dataSource: DataSource,
     @Inject(OUTBOX_CLIENT) private readonly client: ClientProxy,
+    private readonly outboxMetrics: OutboxMetrics,
   ) {}
 
   onModuleInit(): void {
@@ -78,9 +80,17 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
           published++;
         } catch (error) {
           const reason = (error as Error).message;
-          this.logger.warn(
-            `outbox publish failed id=${message.id} pattern=${message.pattern} attempt=${message.attempts + 1}: ${reason}`,
-          );
+          const isLastAttempt = message.attempts + 1 === OUTBOX_MAX_ATTEMPTS;
+          if (isLastAttempt) {
+            this.logger.error(
+              `outbox message exhausted id=${message.id} pattern=${message.pattern} attempt=${message.attempts + 1}: ${reason}`,
+            );
+            this.outboxMetrics.messageExhausted(message.pattern);
+          } else {
+            this.logger.warn(
+              `outbox publish failed id=${message.id} pattern=${message.pattern} attempt=${message.attempts + 1}: ${reason}`,
+            );
+          }
           await manager.update(OutboxMessage, message.id, {
             attempts: () => '"attempts" + 1',
             lastError: reason,

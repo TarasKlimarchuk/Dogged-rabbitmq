@@ -1,5 +1,6 @@
 import type { ClientProxy } from '@nestjs/microservices';
 import type { DataSource } from 'typeorm';
+import type { OutboxMetrics } from '@app/metrics';
 import { Observable, of, throwError } from 'rxjs';
 import { OutboxMessage } from './outbox-message.entity.js';
 import { OUTBOX_MAX_ATTEMPTS, OutboxRelay } from './outbox.relay.js';
@@ -37,11 +38,13 @@ function setup(
   const transaction = vi.fn(
     async (work: (m: typeof manager) => Promise<unknown>) => work(manager),
   );
+  const metrics = { messageExhausted: vi.fn() };
   const relay = new OutboxRelay(
     { transaction } as unknown as DataSource,
     { emit } as unknown as ClientProxy,
+    metrics as unknown as OutboxMetrics,
   );
-  return { relay, qb, manager, emit, transaction };
+  return { relay, qb, manager, emit, transaction, metrics };
 }
 
 describe('OutboxRelay', () => {
@@ -94,6 +97,37 @@ describe('OutboxRelay', () => {
       attempts: expect.any(Function),
       lastError: 'broker down',
     });
+  });
+
+  it('does not count a failed publish as exhausted while retries remain', async () => {
+    const emit = vi
+      .fn()
+      .mockReturnValue(throwError(() => new Error('broker down')));
+    const { relay, metrics } = setup(
+      [row({ attempts: OUTBOX_MAX_ATTEMPTS - 2 })],
+      emit,
+    );
+
+    await relay.publishBatch();
+
+    expect(metrics.messageExhausted).not.toHaveBeenCalled();
+  });
+
+  it('counts a message as exhausted when its last attempt fails', async () => {
+    const emit = vi
+      .fn()
+      .mockReturnValue(throwError(() => new Error('broker down')));
+    const { relay, metrics } = setup(
+      [row({ attempts: OUTBOX_MAX_ATTEMPTS - 1 })],
+      emit,
+    );
+
+    await relay.publishBatch();
+
+    expect(metrics.messageExhausted).toHaveBeenCalledTimes(1);
+    expect(metrics.messageExhausted).toHaveBeenCalledWith(
+      'replenishment.restock_requested',
+    );
   });
 
   it('keeps going after one failed row, so one bad message does not block the rest', async () => {
