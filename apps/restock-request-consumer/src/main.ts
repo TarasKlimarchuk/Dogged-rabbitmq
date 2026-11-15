@@ -32,17 +32,20 @@ async function bootstrap() {
   const app = await NestFactory.create(RestockRequestConsumerModule);
   app.enableShutdownHooks();
 
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.RMQ,
-    options: {
-      urls: [RABBITMQ_URL],
-      queue: REPLENISHMENTS_QUEUE,
-      noAck: false,
-      prefetchCount: 10,
-      // must match the producer's (orders-worker) declaration
-      queueOptions: REPLENISHMENTS_QUEUE_OPTIONS,
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.RMQ,
+      options: {
+        urls: [RABBITMQ_URL],
+        queue: REPLENISHMENTS_QUEUE,
+        noAck: false,
+        prefetchCount: 10,
+        // must match the producer's (orders-worker) declaration
+        queueOptions: REPLENISHMENTS_QUEUE_OPTIONS,
+      },
     },
-  });
+    { inheritAppConfig: true },
+  );
   await app.startAllMicroservices();
   // HTTP only serves /metrics
   await app.listen(3005);

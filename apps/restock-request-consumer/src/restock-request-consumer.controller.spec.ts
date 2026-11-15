@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import type { RmqContext } from '@nestjs/microservices';
+import { Registry } from '@prometheus-io/client';
+import { RabbitmqMetrics } from '@app/metrics';
 import {
   REPLENISHMENTS_DELIVERY_LIMIT,
   REPLENISHMENTS_MAX_ATTEMPTS,
@@ -27,7 +29,9 @@ function setup(
   } as unknown as RmqContext;
   const controller = new RestockRequestConsumerController({
     handleRestockRequested: handle,
-  } as unknown as RestockRequestConsumerService);
+  } as unknown as RestockRequestConsumerService,
+  new RabbitmqMetrics(new Registry()),
+  );
   return { controller, channel, rawMessage, ctx, handle };
 }
 

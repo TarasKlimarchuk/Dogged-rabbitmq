@@ -50,27 +50,33 @@ async function bootstrap() {
 
   // One RMQ server per queue. Each server only receives its own queue's
   // messages, and routes them to the @EventPattern handler by pattern.
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.RMQ,
-    options: {
-      urls: [RABBITMQ_URL],
-      queue: ORDERS_QUEUE,
-      noAck: false,
-      prefetchCount: 10,
-      queueOptions: ORDERS_QUEUE_OPTIONS,
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.RMQ,
+      options: {
+        urls: [RABBITMQ_URL],
+        queue: ORDERS_QUEUE,
+        noAck: false,
+        prefetchCount: 10,
+        queueOptions: ORDERS_QUEUE_OPTIONS,
+      },
     },
-  });
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.RMQ,
-    options: {
-      urls: [RABBITMQ_URL],
-      queue: RESTOCK_DELIVERIES_QUEUE,
-      noAck: false,
-      prefetchCount: 10,
-      // must match the producer's (warehouse) declaration
-      queueOptions: RESTOCK_DELIVERIES_QUEUE_OPTIONS,
+    { inheritAppConfig: true },
+  );
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.RMQ,
+      options: {
+        urls: [RABBITMQ_URL],
+        queue: RESTOCK_DELIVERIES_QUEUE,
+        noAck: false,
+        prefetchCount: 10,
+        // must match the producer's (warehouse) declaration
+        queueOptions: RESTOCK_DELIVERIES_QUEUE_OPTIONS,
+      },
     },
-  });
+    { inheritAppConfig: true },
+  );
   await app.startAllMicroservices();
   // HTTP only serves /metrics
   await app.listen(3004);

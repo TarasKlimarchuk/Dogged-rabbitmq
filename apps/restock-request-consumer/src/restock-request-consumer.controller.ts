@@ -7,6 +7,7 @@ import {
   REPLENISHMENTS_MAX_ATTEMPTS,
   RestockRequestedEvent,
 } from '@app/contracts/replenishments';
+import { RabbitmqMetrics } from '@app/metrics';
 import { assertNever, deliveryAttempt, formatErrors } from '@app/utils';
 import { RestockRequestConsumerService } from './restock-request-consumer.service.js';
 
@@ -14,7 +15,10 @@ import { RestockRequestConsumerService } from './restock-request-consumer.servic
 export class RestockRequestConsumerController {
   private readonly logger = new Logger(RestockRequestConsumerController.name);
 
-  constructor(private readonly service: RestockRequestConsumerService) {}
+  constructor(
+    private readonly service: RestockRequestConsumerService,
+    private readonly rabbitmqMetrics: RabbitmqMetrics,
+  ) {}
 
   @EventPattern<string>(REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED)
   async handleRestockRequested(
@@ -31,6 +35,7 @@ export class RestockRequestConsumerController {
         `invalid ${REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED} message, moved to DLQ: ${formatErrors(errors)}`,
       );
       channel.nack(originalMsg, false, false);
+      this.rabbitmqMetrics.messageSettled(REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED, 'dead_letter');
       return;
     }
 
@@ -49,6 +54,7 @@ export class RestockRequestConsumerController {
           assertNever(out);
       }
       channel.ack(originalMsg);
+      this.rabbitmqMetrics.messageSettled(REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED, 'ack');
     } catch (error) {
       const attempt = deliveryAttempt(originalMsg);
       const { message: reason, stack } = error as Error;
@@ -65,6 +71,7 @@ export class RestockRequestConsumerController {
       // requeue so the quorum queue counts the delivery; past
       // x-delivery-limit it dead-letters instead
       channel.reject(originalMsg, true);
+      this.rabbitmqMetrics.messageSettled(REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED, 'requeue');
     }
   }
 }

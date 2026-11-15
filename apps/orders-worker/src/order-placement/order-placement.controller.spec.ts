@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import type { RmqContext } from '@nestjs/microservices';
+import { Registry } from '@prometheus-io/client';
+import { RabbitmqMetrics } from '@app/metrics';
 import { ORDERS_DELIVERY_LIMIT, ORDERS_MAX_ATTEMPTS } from '@app/contracts/orders';
 import { OrderPlacementController } from './order-placement.controller.js';
 import type { OrderPlacementService } from './order-placement.service.js';
@@ -23,7 +25,9 @@ function setup(
   } as unknown as RmqContext;
   const controller = new OrderPlacementController({
     handleOrderPlaced: handle,
-  } as unknown as OrderPlacementService);
+  } as unknown as OrderPlacementService,
+  new RabbitmqMetrics(new Registry()),
+  );
   return { controller, channel, rawMessage, ctx, handle };
 }
 
