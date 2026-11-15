@@ -45,3 +45,14 @@ scrape_configs:
   - job_name: postgres
     static_configs:
       - targets: ['postgres-exporter:9187']
+
+  - job_name: rabbitmq
+    static_configs:
+      - targets: [ 'rabbitMQ:15692' ]
+
+  - job_name: rabbitmq-detailed
+    metrics_path: /metrics/detailed
+    params:
+      family: [ queue_coarse_metrics, queue_consumer_count ]
+    static_configs:
+      - targets: [ 'rabbitMQ:15692' ]
