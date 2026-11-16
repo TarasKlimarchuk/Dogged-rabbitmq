@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggingModule } from '@app/logging';
 import { MetricsModule } from '@app/metrics';
+import { HealthModule } from '@app/health';
 import { Order, ProcessedMessage } from '@app/orders-db';
 import { OrderPlacementController } from './order-placement/order-placement.controller.js';
 import { OrderPlacementService } from './order-placement/order-placement.service.js';
@@ -34,6 +35,7 @@ import { MenuModule } from './menu/menu.module.js';
     }),
     TypeOrmModule.forFeature([Order, ProcessedMessage]),
     MetricsModule, // exposes /metrics and HTTP request metrics
+    HealthModule.forRoot({ database: true, rabbitmq: true }), // /health/live, /health/ready
     StockModule,
     MenuModule,
   ],

@@ -3,8 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LoggingModule } from '@app/logging';
 import { MetricsModule } from '@app/metrics';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
+import { HealthModule } from '@app/health';
 import { DeliveriesModule } from './deliveries/deliveries.module.js';
 import { InitialSchema1791462830391 } from './migrations/1791462830391-InitialSchema.js';
 import { AddRestockRequestId1791462831391 } from './migrations/1791462831391-AddRestockRequestId.js';
@@ -37,9 +36,8 @@ import { DropNotifiedOrdersManagement1791462833391 } from './migrations/17914628
       }),
     }),
     MetricsModule,
+    HealthModule.forRoot({ database: true, rabbitmq: true }),
     DeliveriesModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

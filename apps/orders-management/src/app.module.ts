@@ -3,8 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LoggingModule } from '@app/logging';
 import { MetricsModule } from '@app/metrics';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
+import { HealthModule } from '@app/health';
 import { MenuModule } from './menu/menu.module.js';
 import { InitialSchema1791462826391 } from './migrations/1791462826391-InitialSchema.js';
 import { SeedMenu1791462827391 } from './migrations/1791462827391-SeedMenu.js';
@@ -41,9 +40,8 @@ import { AddProcessedMessages1791462831391 } from './migrations/1791462831391-Ad
       }),
     }),
     MetricsModule,
+    HealthModule.forRoot({ database: true, rabbitmq: true }),
     MenuModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

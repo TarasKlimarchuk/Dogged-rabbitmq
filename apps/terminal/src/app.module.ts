@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { MenuModule } from './menu/menu.module.js';
 import { LoggingModule } from '@app/logging';
 import { MetricsModule } from '@app/metrics';
+import { HealthModule } from '@app/health';
 
 @Module({
   imports: [
@@ -14,8 +13,7 @@ import { MetricsModule } from '@app/metrics';
     OrdersModule,
     MenuModule,
     MetricsModule,
+    HealthModule.forRoot({ rabbitmq: true }),
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

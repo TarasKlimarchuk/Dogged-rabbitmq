@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggingModule } from '@app/logging';
 import { MetricsModule } from '@app/metrics';
+import { HealthModule } from '@app/health';
 import { Delivery } from '@app/warehouse-db';
 import { RestockRequestConsumerController } from './restock-request-consumer.controller.js';
 import { RestockRequestConsumerService } from './restock-request-consumer.service.js';
@@ -30,6 +31,7 @@ import { RestockRequestConsumerService } from './restock-request-consumer.servic
     }),
     TypeOrmModule.forFeature([Delivery]),
     MetricsModule, // exposes /metrics
+    HealthModule.forRoot({ database: true, rabbitmq: true }), // /health/live, /health/ready
   ],
   controllers: [RestockRequestConsumerController],
   providers: [RestockRequestConsumerService],

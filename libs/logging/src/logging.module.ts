@@ -13,7 +13,11 @@ export function loggerParams(): Params {
       transport: pretty
         ? { target: 'pino-pretty', options: { singleLine: true } }
         : undefined,
-      autoLogging: { ignore: (req) => req.url === '/metrics' },
+      // Scrapes and health probes hit every few seconds; logging them is noise.
+      autoLogging: {
+        ignore: (req) =>
+          req.url === '/metrics' || (req.url ?? '').startsWith('/health/'),
+      },
       quietReqLogger: true,
       redact: ['req.headers.authorization', 'req.headers.cookie'],
     },

@@ -72,6 +72,12 @@
       ],
       "@app/logging/*": [
         "./libs/logging/src/*"
+      ],
+      "@app/health": [
+        "./libs/health/src/index.ts"
+      ],
+      "@app/health/*": [
+        "./libs/health/src/*"
       ]
     }
   }
