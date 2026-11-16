@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { Logger } from 'nestjs-pino';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { connect } from 'amqplib';
 import {
@@ -43,7 +44,9 @@ async function declareDeadLetterQueues(url: string): Promise<void> {
 async function bootstrap() {
   await declareDeadLetterQueues(RABBITMQ_URL);
 
-  const app = await NestFactory.create(OrdersWorkerModule);
+  // Hold startup logs until the pino logger is set, so they come out as JSON too.
+  const app = await NestFactory.create(OrdersWorkerModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
   // On SIGTERM (docker stop, deploy), run onModuleDestroy hooks so the outbox
   // relay stops polling before connections close.
   app.enableShutdownHooks();

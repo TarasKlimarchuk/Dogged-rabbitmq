@@ -66,6 +66,12 @@
       ],
       "@app/outbox/*": [
         "./libs/outbox/src/*"
+      ],
+      "@app/logging": [
+        "./libs/logging/src/index.ts"
+      ],
+      "@app/logging/*": [
+        "./libs/logging/src/*"
       ]
     }
   }

@@ -44,7 +44,7 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
     try {
       await this.publishBatch();
     } catch (error) {
-      this.logger.error(`outbox tick failed: ${(error as Error).message}`);
+      this.logger.error({ err: error }, 'outbox tick failed');
     } finally {
       this.running = false;
     }
@@ -80,16 +80,22 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
           published++;
         } catch (error) {
           const reason = (error as Error).message;
-          const isLastAttempt = message.attempts + 1 === OUTBOX_MAX_ATTEMPTS;
-          if (isLastAttempt) {
+          const attempt = message.attempts + 1;
+          const fields = {
+            outboxId: message.id,
+            pattern: message.pattern,
+            attempt,
+            maxAttempts: OUTBOX_MAX_ATTEMPTS,
+            reason,
+          };
+          if (attempt === OUTBOX_MAX_ATTEMPTS) {
             this.logger.error(
-              `outbox message exhausted id=${message.id} pattern=${message.pattern} attempt=${message.attempts + 1}: ${reason}`,
+              fields,
+              'outbox message exhausted, it will not be retried',
             );
             this.outboxMetrics.messageExhausted(message.pattern);
           } else {
-            this.logger.warn(
-              `outbox publish failed id=${message.id} pattern=${message.pattern} attempt=${message.attempts + 1}: ${reason}`,
-            );
+            this.logger.warn(fields, 'outbox publish failed');
           }
           await manager.update(OutboxMessage, message.id, {
             attempts: () => '"attempts" + 1',
@@ -99,7 +105,10 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
       }
 
       if (published > 0) {
-        this.logger.log(`outbox published ${published}/${batch.length}`);
+        this.logger.log(
+          { published, batchSize: batch.length },
+          'outbox batch published',
+        );
       }
       return published;
     });

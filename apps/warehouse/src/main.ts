@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { connect } from 'amqplib';
@@ -27,7 +28,9 @@ async function declareDeadLetterQueue(url: string): Promise<void> {
 async function bootstrap() {
   await declareDeadLetterQueue(RABBITMQ_URL);
 
-  const app = await NestFactory.create(AppModule);
+  // Hold startup logs until the pino logger is set, so they come out as JSON too.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
 
   app.useGlobalPipes(

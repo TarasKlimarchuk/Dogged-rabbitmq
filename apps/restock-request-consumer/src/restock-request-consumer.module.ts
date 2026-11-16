@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { LoggingModule } from '@app/logging';
 import { MetricsModule } from '@app/metrics';
 import { Delivery } from '@app/warehouse-db';
 import { RestockRequestConsumerController } from './restock-request-consumer.controller.js';
@@ -9,6 +10,7 @@ import { RestockRequestConsumerService } from './restock-request-consumer.servic
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    LoggingModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

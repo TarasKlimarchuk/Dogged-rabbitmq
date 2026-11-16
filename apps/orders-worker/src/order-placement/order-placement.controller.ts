@@ -29,34 +29,44 @@ export class OrderPlacementController {
     const errors = await validate(message, { whitelist: true });
     if (errors.length > 0) {
       this.logger.warn(
-        `invalid order.place message, moved to DLQ: ${formatErrors(errors)}`,
+        { outcome: 'invalid', reason: formatErrors(errors) },
+        'invalid order.place message, moved to DLQ',
       );
       channel.nack(originalMsg, false, false);
       this.rabbitmqMetrics.messageSettled(ORDER_PATTERNS.PLACE, 'dead_letter');
       return;
     }
 
-    const key = `idempotencyKey=${message.idempotencyKey}`;
+    // Logged as separate JSON fields, so Loki can filter on each of them.
+    const fields = {
+      idempotencyKey: message.idempotencyKey,
+      terminalId: message.terminalId,
+    };
 
     try {
       const out = await this.service.handleOrderPlaced(message);
       switch (out.kind) {
         case 'placed':
           this.logger.log(
-            `order placed, ${key} inventoryIssue=${out.inventoryIssue}`,
+            { ...fields, outcome: 'placed', inventoryIssue: out.inventoryIssue },
+            'order placed',
           );
           channel.ack(originalMsg);
           this.rabbitmqMetrics.messageSettled(ORDER_PATTERNS.PLACE, 'ack');
           break;
         case 'duplicate':
-          this.logger.log(`duplicate order ignored, ${key}`);
+          this.logger.log(
+            { ...fields, outcome: 'duplicate' },
+            'duplicate order ignored',
+          );
           channel.ack(originalMsg);
           this.rabbitmqMetrics.messageSettled(ORDER_PATTERNS.PLACE, 'ack');
           break;
         case 'rejected':
           // no requeue = dead letter: goes straight to the DLQ
           this.logger.warn(
-            `order rejected, moved to DLQ, ${key}: ${out.reason}`,
+            { ...fields, outcome: 'rejected', reason: out.reason },
+            'order rejected, moved to DLQ',
           );
           channel.nack(originalMsg, false, false);
           this.rabbitmqMetrics.messageSettled(ORDER_PATTERNS.PLACE, 'dead_letter');
@@ -64,17 +74,18 @@ export class OrderPlacementController {
         default:
           assertNever(out);
       }
-    } catch (error) {
+    } catch (err) {
       const attempt = deliveryAttempt(originalMsg);
-      const { message: reason, stack } = error as Error;
+      const retry = { ...fields, attempt, maxAttempts: ORDERS_MAX_ATTEMPTS };
       if (attempt >= ORDERS_MAX_ATTEMPTS) {
         this.logger.error(
-          `order failed on final attempt ${attempt}/${ORDERS_MAX_ATTEMPTS}, RabbitMQ will move it to the DLQ, ${key}: ${reason}`,
-          stack,
+          { ...retry, outcome: 'final_failure', err },
+          'order failed on final attempt, RabbitMQ will move it to the DLQ',
         );
       } else {
         this.logger.warn(
-          `order failed (attempt ${attempt}/${ORDERS_MAX_ATTEMPTS}), requeueing, ${key}: ${reason}`,
+          { ...retry, outcome: 'retry', reason: (err as Error).message },
+          'order failed, requeueing',
         );
       }
       channel.reject(originalMsg, true);

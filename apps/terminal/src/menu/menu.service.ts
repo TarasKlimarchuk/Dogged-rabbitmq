@@ -42,7 +42,8 @@ export class MenuService {
       return { items, source: 'live' };
     } catch (error) {
       this.logger.warn(
-        `menu fetch failed after retries, falling back: ${(error as Error).message}`,
+        { reason: (error as Error).message },
+        'menu fetch failed after retries, falling back',
       );
       this.startBackgroundRecovery();
 
@@ -66,9 +67,7 @@ export class MenuService {
         this.logger.log('background recovery succeeded, cache updated');
       })
       .catch((error) => {
-        this.logger.error(
-          `background recovery gave up: ${(error as Error).message}`,
-        );
+        this.logger.error({ err: error }, 'background recovery gave up');
       })
       .finally(() => {
         this.recovering = false;

@@ -43,7 +43,11 @@ export class OrdersService {
       return { status: 'accepted', order, terminalId };
     } catch (error) {
       this.logger.warn(
-        `order broker publish failed, idempotencyKey=${order.idempotencyKey}: ${(error as Error).message}`,
+        {
+          idempotencyKey: order.idempotencyKey,
+          reason: (error as Error).message,
+        },
+        'order broker publish failed',
       );
       throw new ServiceUnavailableException(
         'orders broker is unavailable, please try again later',

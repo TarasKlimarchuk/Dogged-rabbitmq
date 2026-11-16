@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { LoggingModule } from '@app/logging';
 import { MetricsModule } from '@app/metrics';
 import { Order, ProcessedMessage } from '@app/orders-db';
 import { OrderPlacementController } from './order-placement/order-placement.controller.js';
@@ -13,6 +14,7 @@ import { MenuModule } from './menu/menu.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    LoggingModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

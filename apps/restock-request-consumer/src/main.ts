@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { Logger } from 'nestjs-pino';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { connect } from 'amqplib';
 import {
@@ -29,7 +30,9 @@ async function declareDeadLetterQueue(url: string): Promise<void> {
 async function bootstrap() {
   await declareDeadLetterQueue(RABBITMQ_URL);
 
-  const app = await NestFactory.create(RestockRequestConsumerModule);
+  // Hold startup logs until the pino logger is set, so they come out as JSON too.
+  const app = await NestFactory.create(RestockRequestConsumerModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
 
   app.connectMicroservice<MicroserviceOptions>(

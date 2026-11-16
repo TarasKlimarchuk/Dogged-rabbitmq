@@ -108,7 +108,12 @@ describe('RestockDeliveredController', () => {
     expect(channel.reject).toHaveBeenCalledWith(rawMessage, true);
     expect(channel.ack).not.toHaveBeenCalled();
     expect(Logger.prototype.warn).toHaveBeenCalledWith(
-      expect.stringContaining(`attempt 1/${REPLENISHMENTS_MAX_ATTEMPTS}`),
+      expect.objectContaining({
+        outcome: 'retry',
+        attempt: 1,
+        maxAttempts: REPLENISHMENTS_MAX_ATTEMPTS,
+      }),
+      expect.any(String),
     );
   });
 
@@ -121,8 +126,11 @@ describe('RestockDeliveredController', () => {
     await controller.handleRestockDelivered(validPayload, ctx);
 
     expect(Logger.prototype.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'final_failure',
+        err: expect.objectContaining({ message: 'connection refused' }),
+      }),
       expect.stringContaining('will move it to the DLQ'),
-      expect.stringContaining('Error: connection refused'),
     );
     expect(channel.reject).toHaveBeenCalledWith(rawMessage, true);
   });

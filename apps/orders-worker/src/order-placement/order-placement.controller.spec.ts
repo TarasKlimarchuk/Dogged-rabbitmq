@@ -92,7 +92,12 @@ describe('OrderPlacementController', () => {
 
     expect(channel.reject).toHaveBeenCalledWith(rawMessage, true);
     expect(Logger.prototype.warn).toHaveBeenCalledWith(
-      expect.stringContaining(`attempt 1/${ORDERS_MAX_ATTEMPTS}`),
+      expect.objectContaining({
+        outcome: 'retry',
+        attempt: 1,
+        maxAttempts: ORDERS_MAX_ATTEMPTS,
+      }),
+      expect.any(String),
     );
   });
 
@@ -105,7 +110,12 @@ describe('OrderPlacementController', () => {
     await controller.handleOrderPlaced(validPayload, ctx);
 
     expect(Logger.prototype.warn).toHaveBeenCalledWith(
-      expect.stringContaining(`attempt 3/${ORDERS_MAX_ATTEMPTS}`),
+      expect.objectContaining({
+        outcome: 'retry',
+        attempt: 3,
+        maxAttempts: ORDERS_MAX_ATTEMPTS,
+      }),
+      expect.any(String),
     );
   });
 
@@ -118,8 +128,11 @@ describe('OrderPlacementController', () => {
     await controller.handleOrderPlaced(validPayload, ctx);
 
     expect(Logger.prototype.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'final_failure',
+        err: expect.objectContaining({ message: 'connection refused' }),
+      }),
       expect.stringContaining('will move it to the DLQ'),
-      expect.stringContaining('Error: connection refused'),
     );
     expect(channel.reject).toHaveBeenCalledWith(rawMessage, true);
   });

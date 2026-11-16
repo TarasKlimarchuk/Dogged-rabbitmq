@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { LoggingModule } from '@app/logging';
 import { MetricsModule } from '@app/metrics';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
@@ -15,6 +16,7 @@ import { AddProcessedMessages1791462831391 } from './migrations/1791462831391-Ad
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    LoggingModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

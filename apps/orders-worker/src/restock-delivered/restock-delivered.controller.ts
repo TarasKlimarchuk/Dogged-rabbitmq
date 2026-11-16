@@ -32,31 +32,47 @@ export class RestockDeliveredController {
     const errors = await validate(event, { whitelist: true });
     if (errors.length > 0) {
       this.logger.warn(
-        `invalid ${REPLENISHMENT_PATTERNS.RESTOCK_DELIVERED} message, moved to DLQ: ${formatErrors(errors)}`,
+        { outcome: 'invalid', reason: formatErrors(errors) },
+        `invalid ${REPLENISHMENT_PATTERNS.RESTOCK_DELIVERED} message, moved to DLQ`,
       );
       channel.nack(originalMsg, false, false);
       this.rabbitmqMetrics.messageSettled(REPLENISHMENT_PATTERNS.RESTOCK_DELIVERED, 'dead_letter');
       return;
     }
 
-    const key = `messageId=${event.messageId} deliveryId=${event.deliveryId} terminalId=${event.terminalId} itemName=${event.itemName}`;
+    // Logged as separate JSON fields, so Loki can filter on each of them.
+    const fields = {
+      messageId: event.messageId,
+      deliveryId: event.deliveryId,
+      terminalId: event.terminalId,
+      itemName: event.itemName,
+    };
 
     try {
       const out = await this.service.handleRestockDelivered(event);
       switch (out.kind) {
         case 'restocked':
-          this.logger.log(`stock restocked to ${out.quantity}, ${key}`);
+          this.logger.log(
+            { ...fields, outcome: 'restocked', quantity: out.quantity },
+            'stock restocked',
+          );
           channel.ack(originalMsg);
           this.rabbitmqMetrics.messageSettled(REPLENISHMENT_PATTERNS.RESTOCK_DELIVERED, 'ack');
           break;
         case 'duplicate':
-          this.logger.log(`duplicate delivery ignored, ${key}`);
+          this.logger.log(
+            { ...fields, outcome: 'duplicate' },
+            'duplicate delivery ignored',
+          );
           channel.ack(originalMsg);
           this.rabbitmqMetrics.messageSettled(REPLENISHMENT_PATTERNS.RESTOCK_DELIVERED, 'ack');
           break;
         case 'rejected':
           // retrying can't fix it: dead-letter straight away
-          this.logger.warn(`delivery rejected, moved to DLQ, ${key}: ${out.reason}`);
+          this.logger.warn(
+            { ...fields, outcome: 'rejected', reason: out.reason },
+            'delivery rejected, moved to DLQ',
+          );
           channel.nack(originalMsg, false, false);
           this.rabbitmqMetrics.messageSettled(REPLENISHMENT_PATTERNS.RESTOCK_DELIVERED, 'dead_letter');
           break;
@@ -65,15 +81,20 @@ export class RestockDeliveredController {
       }
     } catch (error) {
       const attempt = deliveryAttempt(originalMsg);
-      const { message: reason, stack } = error as Error;
+      const retry = {
+        ...fields,
+        attempt,
+        maxAttempts: REPLENISHMENTS_MAX_ATTEMPTS,
+      };
       if (attempt >= REPLENISHMENTS_MAX_ATTEMPTS) {
         this.logger.error(
-          `delivery failed on final attempt ${attempt}/${REPLENISHMENTS_MAX_ATTEMPTS}, RabbitMQ will move it to the DLQ, ${key}: ${reason}`,
-          stack,
+          { ...retry, outcome: 'final_failure', err: error },
+          'delivery failed on final attempt, RabbitMQ will move it to the DLQ',
         );
       } else {
         this.logger.warn(
-          `delivery failed (attempt ${attempt}/${REPLENISHMENTS_MAX_ATTEMPTS}), requeueing, ${key}: ${reason}`,
+          { ...retry, outcome: 'retry', reason: (error as Error).message },
+          'delivery failed, requeueing',
         );
       }
       // requeue so the quorum queue counts the delivery; past

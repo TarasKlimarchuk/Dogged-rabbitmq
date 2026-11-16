@@ -32,23 +32,34 @@ export class RestockRequestConsumerController {
     const errors = await validate(event, { whitelist: true });
     if (errors.length > 0) {
       this.logger.warn(
-        `invalid ${REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED} message, moved to DLQ: ${formatErrors(errors)}`,
+        { outcome: 'invalid', reason: formatErrors(errors) },
+        `invalid ${REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED} message, moved to DLQ`,
       );
       channel.nack(originalMsg, false, false);
       this.rabbitmqMetrics.messageSettled(REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED, 'dead_letter');
       return;
     }
 
-    const key = `messageId=${event.messageId} terminalId=${event.terminalId} itemName=${event.itemName}`;
+    const fields = {
+      messageId: event.messageId,
+      terminalId: event.terminalId,
+      itemName: event.itemName,
+    };
 
     try {
       const out = await this.service.handleRestockRequested(event);
       switch (out.kind) {
         case 'created':
-          this.logger.log(`delivery ${out.deliveryId} created, ${key}`);
+          this.logger.log(
+            { ...fields, outcome: 'created', deliveryId: out.deliveryId },
+            'delivery created',
+          );
           break;
         case 'duplicate':
-          this.logger.log(`duplicate restock request ignored, ${key}`);
+          this.logger.log(
+            { ...fields, outcome: 'duplicate' },
+            'duplicate restock request ignored',
+          );
           break;
         default:
           assertNever(out);
@@ -57,15 +68,20 @@ export class RestockRequestConsumerController {
       this.rabbitmqMetrics.messageSettled(REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED, 'ack');
     } catch (error) {
       const attempt = deliveryAttempt(originalMsg);
-      const { message: reason, stack } = error as Error;
+      const retry = {
+        ...fields,
+        attempt,
+        maxAttempts: REPLENISHMENTS_MAX_ATTEMPTS,
+      };
       if (attempt >= REPLENISHMENTS_MAX_ATTEMPTS) {
         this.logger.error(
-          `restock request failed on final attempt ${attempt}/${REPLENISHMENTS_MAX_ATTEMPTS}, RabbitMQ will move it to the DLQ, ${key}: ${reason}`,
-          stack,
+          { ...retry, outcome: 'final_failure', err: error },
+          'restock request failed on final attempt, RabbitMQ will move it to the DLQ',
         );
       } else {
         this.logger.warn(
-          `restock request failed (attempt ${attempt}/${REPLENISHMENTS_MAX_ATTEMPTS}), requeueing, ${key}: ${reason}`,
+          { ...retry, outcome: 'retry', reason: (error as Error).message },
+          'restock request failed, requeueing',
         );
       }
       // requeue so the quorum queue counts the delivery; past
