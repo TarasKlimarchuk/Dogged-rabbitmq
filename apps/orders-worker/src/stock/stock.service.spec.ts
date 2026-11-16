@@ -7,6 +7,7 @@ import type { OutboxService } from '@app/outbox';
 // capacity 50 → reorder threshold 15
 const OK = { quantity: 45, capacity: 50, wasInsufficient: false };
 const LOW = { quantity: 14, capacity: 50, wasInsufficient: false };
+const ORDER_ID = '7a5a6c9e-9c3a-4b8a-8e7a-3c2f6b0e1a2d';
 
 function setup({
   query = vi.fn().mockResolvedValue([OK]),
@@ -17,7 +18,12 @@ function setup({
   const outbox = { enqueue };
   const service = new StockService(outbox as unknown as OutboxService);
   const reserve = (items: { name: string; quantity: number }[]) =>
-    service.reserve(manager as unknown as EntityManager, 'terminal-a', items);
+    service.reserve(
+      manager as unknown as EntityManager,
+      ORDER_ID,
+      'terminal-a',
+      items,
+    );
   return { reserve, manager, outbox };
 }
 
@@ -28,7 +34,11 @@ describe('StockService.reserve()', () => {
 
       const result = await reserve([{ name: 'Hot Dog', quantity: 5 }]);
 
-      expect(result).toEqual({ kind: 'reserved', inventoryIssue: false });
+      expect(result).toEqual({
+        kind: 'reserved',
+        inventoryIssue: false,
+        restockRequests: [],
+      });
       expect(manager.query).toHaveBeenCalledWith(expect.any(String), [
         'terminal-a',
         'Hot Dog',
@@ -47,7 +57,7 @@ describe('StockService.reserve()', () => {
 
       const result = await reserve([{ name: 'Hot Dog', quantity: 5 }]);
 
-      expect(result).toEqual({ kind: 'reserved', inventoryIssue: true });
+      expect(result).toMatchObject({ kind: 'reserved', inventoryIssue: true });
     });
 
     it('returns missing-stock when the terminal has no stock row for an item', async () => {
@@ -98,8 +108,29 @@ describe('StockService.reserve()', () => {
       expect(outbox.enqueue).toHaveBeenCalledWith(
         manager,
         REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED,
-        { terminalId: 'terminal-a', itemName: 'Hot Dog', upToCapacity: 50 },
+        {
+          triggeredByOrderId: ORDER_ID,
+          terminalId: 'terminal-a',
+          itemName: 'Hot Dog',
+          upToCapacity: 50,
+        },
       );
+    });
+
+    it('returns each enqueued request so the caller can log it after commit', async () => {
+      const { reserve } = setup({
+        query: vi.fn().mockResolvedValue([LOW]),
+      });
+
+      const result = await reserve([{ name: 'Hot Dog', quantity: 1 }]);
+
+      expect(result).toEqual({
+        kind: 'reserved',
+        inventoryIssue: false,
+        restockRequests: [
+          { restockRequestId: 'message-id', itemName: 'Hot Dog' },
+        ],
+      });
     });
 
     it('does nothing when stock stays at or above the threshold', async () => {
@@ -123,9 +154,10 @@ describe('StockService.reserve()', () => {
         update: vi.fn().mockResolvedValue({ affected: 0 }),
       });
 
-      await reserve([{ name: 'Hot Dog', quantity: 1 }]);
+      const result = await reserve([{ name: 'Hot Dog', quantity: 1 }]);
 
       expect(outbox.enqueue).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ restockRequests: [] });
     });
 
     it('enqueues only for the items that were claimed', async () => {
@@ -147,6 +179,7 @@ describe('StockService.reserve()', () => {
         expect.anything(),
         expect.any(String),
         {
+          triggeredByOrderId: ORDER_ID,
           terminalId: 'terminal-a',
           itemName: 'Soda',
           upToCapacity: 50,

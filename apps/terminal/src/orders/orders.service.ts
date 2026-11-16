@@ -44,7 +44,7 @@ export class OrdersService {
     } catch (error) {
       this.logger.warn(
         {
-          idempotencyKey: order.idempotencyKey,
+          orderId: order.orderId,
           reason: (error as Error).message,
         },
         'order broker publish failed',

@@ -10,8 +10,20 @@ import { OutboxService } from '@app/outbox';
 
 const REORDER_THRESHOLD_RATIO = 0.3;
 
+// A restock request enqueued while reserving stock for an order. Returned so
+// the caller can log it once the transaction commits (logging it here would
+// report requests that a later rollback throws away).
+export interface ScheduledRestock {
+  restockRequestId: string;
+  itemName: string;
+}
+
 export type ReserveResult =
-  | { kind: 'reserved'; inventoryIssue: boolean }
+  | {
+      kind: 'reserved';
+      inventoryIssue: boolean;
+      restockRequests: ScheduledRestock[];
+    }
   | { kind: 'missing-stock'; itemName: string };
 
 interface DecrementRow {
@@ -32,10 +44,12 @@ export class StockService {
 
   async reserve(
     manager: EntityManager,
+    orderId: string,
     terminalId: string,
     items: OrderItem[],
   ): Promise<ReserveResult> {
     let inventoryIssue = false;
+    const restockRequests: ScheduledRestock[] = [];
 
     for (const item of items) {
       const result = await this.decrement(
@@ -54,39 +68,47 @@ export class StockService {
       }
 
       if (row.quantity < row.capacity * REORDER_THRESHOLD_RATIO) {
-        await this.scheduleRestock(
+        const restockRequestId = await this.scheduleRestock(
           manager,
+          orderId,
           terminalId,
           item.name,
           row.capacity,
         );
+        if (restockRequestId) {
+          restockRequests.push({ restockRequestId, itemName: item.name });
+        }
       }
     }
 
-    return { kind: 'reserved', inventoryIssue };
+    return { kind: 'reserved', inventoryIssue, restockRequests };
   }
 
+  // Returns the restock request id (the outbox row id, sent as the message's
+  // messageId), or null when a restock for this item is already pending.
   private async scheduleRestock(
     manager: EntityManager,
+    orderId: string,
     terminalId: string,
     itemName: string,
     capacity: number,
-  ): Promise<void> {
+  ): Promise<string | null> {
     const claim = await manager.update(
       TerminalStock,
       { terminalId, itemName, restockPending: false },
       { restockPending: true },
     );
     if (!claim.affected) {
-      return;
+      return null;
     }
 
     const payload: Omit<RestockRequestedEvent, 'messageId'> = {
+      triggeredByOrderId: orderId,
       terminalId,
       itemName,
       upToCapacity: capacity,
     };
-    await this.outbox.enqueue(
+    return this.outbox.enqueue(
       manager,
       REPLENISHMENT_PATTERNS.RESTOCK_REQUESTED,
       payload,

@@ -11,6 +11,7 @@ import { SeedTerminalStock1791462828391 } from './migrations/1791462828391-SeedT
 import { AddRestockPendingColumn1791462829391 } from './migrations/1791462829391-AddRestockPendingColumn.js';
 import { AddOutbox1791462830391 } from './migrations/1791462830391-AddOutbox.js';
 import { AddProcessedMessages1791462831391 } from './migrations/1791462831391-AddProcessedMessages.js';
+import { RenameOrdersIdempotencyKey1791462832391 } from './migrations/1791462832391-RenameOrdersIdempotencyKey.js';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { AddProcessedMessages1791462831391 } from './migrations/1791462831391-Ad
           AddRestockPendingColumn1791462829391,
           AddOutbox1791462830391,
           AddProcessedMessages1791462831391,
+          RenameOrdersIdempotencyKey1791462832391,
         ],
         migrationsRun: true,
       }),

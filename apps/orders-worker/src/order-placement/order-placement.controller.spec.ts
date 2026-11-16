@@ -8,7 +8,7 @@ import { OrderPlacementController } from './order-placement.controller.js';
 import type { OrderPlacementService } from './order-placement.service.js';
 
 const validPayload = {
-  idempotencyKey: '7a5a6c9e-9c3a-4b8a-8e7a-3c2f6b0e1a2d',
+  orderId: '7a5a6c9e-9c3a-4b8a-8e7a-3c2f6b0e1a2d',
   terminalId: 'terminal-a',
   items: [{ name: 'Hot Dog', quantity: 2 }],
 };
@@ -41,7 +41,12 @@ describe('OrderPlacementController', () => {
 
   it('acks a placed order', async () => {
     const { controller, channel, rawMessage, ctx } = setup(
-      vi.fn().mockResolvedValue({ kind: 'placed', orderId: 'x', inventoryIssue: false }),
+      vi.fn().mockResolvedValue({
+        kind: 'placed',
+        orderId: 'x',
+        inventoryIssue: false,
+        restockRequests: [],
+      }),
     );
 
     await controller.handleOrderPlaced(validPayload, ctx);

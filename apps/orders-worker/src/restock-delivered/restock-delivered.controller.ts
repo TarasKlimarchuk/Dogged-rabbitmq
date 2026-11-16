@@ -43,6 +43,7 @@ export class RestockDeliveredController {
     // Logged as separate JSON fields, so Loki can filter on each of them.
     const fields = {
       messageId: event.messageId,
+      restockRequestId: event.restockRequestId,
       deliveryId: event.deliveryId,
       terminalId: event.terminalId,
       itemName: event.itemName,

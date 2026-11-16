@@ -7,7 +7,7 @@ import { DeliveriesService } from './deliveries.service.js';
 
 const pending: Delivery = {
   id: 'delivery-1',
-  restockRequestId: null,
+  restockRequestId: 'restock-request-1',
   terminalId: 'terminal-a',
   itemName: 'Hot Dog',
   quantity: 50,
@@ -99,6 +99,7 @@ describe('DeliveriesService', () => {
         REPLENISHMENT_PATTERNS.RESTOCK_DELIVERED,
         {
           deliveryId: 'delivery-1',
+          restockRequestId: 'restock-request-1',
           terminalId: 'terminal-a',
           itemName: 'Hot Dog',
           quantity: 50,

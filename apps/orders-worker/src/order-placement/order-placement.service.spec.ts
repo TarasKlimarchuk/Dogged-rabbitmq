@@ -5,7 +5,7 @@ import type { MenuService } from '../menu/menu.service.js';
 import type { ReserveResult, StockService } from '../stock/stock.service.js';
 
 const message: PlaceOrderMessage = {
-  idempotencyKey: '7a5a6c9e-9c3a-4b8a-8e7a-3c2f6b0e1a2d',
+  orderId: '7a5a6c9e-9c3a-4b8a-8e7a-3c2f6b0e1a2d',
   terminalId: 'terminal-a',
   items: [{ name: 'Hot Dog', quantity: 2 }],
 };
@@ -15,6 +15,7 @@ function setup({
   reserve = {
     kind: 'reserved',
     inventoryIssue: false,
+    restockRequests: [],
   } as ReserveResult,
   insert = vi.fn().mockResolvedValue({}),
 } = {}) {
@@ -50,16 +51,18 @@ describe('OrderPlacementService', () => {
 
     expect(outcome).toEqual({
       kind: 'placed',
-      orderId: message.idempotencyKey,
+      orderId: message.orderId,
       inventoryIssue: false,
+      restockRequests: [],
     });
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(manager.insert).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ idempotencyKey: message.idempotencyKey }),
+      expect.objectContaining({ orderId: message.orderId }),
     );
     expect(stock.reserve).toHaveBeenCalledWith(
       manager,
+      message.orderId,
       'terminal-a',
       message.items,
     );
@@ -68,7 +71,7 @@ describe('OrderPlacementService', () => {
 
   it('marks the order with inventoryIssue when stock was insufficient', async () => {
     const { service, manager } = setup({
-      reserve: { kind: 'reserved', inventoryIssue: true },
+      reserve: { kind: 'reserved', inventoryIssue: true, restockRequests: [] },
     });
 
     const outcome = await service.handleOrderPlaced(message);
@@ -76,7 +79,7 @@ describe('OrderPlacementService', () => {
     expect(outcome).toMatchObject({ kind: 'placed', inventoryIssue: true });
     expect(manager.update).toHaveBeenCalledWith(
       expect.anything(),
-      message.idempotencyKey,
+      message.orderId,
       { inventoryIssue: true },
     );
   });

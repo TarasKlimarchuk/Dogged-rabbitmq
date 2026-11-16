@@ -40,8 +40,12 @@ export class RestockRequestConsumerController {
       return;
     }
 
+    // Logged as separate JSON fields, so Loki can filter on each of them.
+    // The messageId is the restock's correlation id, logged under the same
+    // name (restockRequestId) in every service the restock passes through.
     const fields = {
-      messageId: event.messageId,
+      restockRequestId: event.messageId,
+      triggeredByOrderId: event.triggeredByOrderId,
       terminalId: event.terminalId,
       itemName: event.itemName,
     };

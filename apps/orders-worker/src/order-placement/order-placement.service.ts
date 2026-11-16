@@ -3,10 +3,15 @@ import { PlaceOrderMessage } from '@app/contracts/orders';
 import { isUniqueViolation, Order } from '@app/orders-db';
 import { DataSource } from 'typeorm';
 import { MenuService } from '../menu/menu.service.js';
-import { StockService } from '../stock/stock.service.js';
+import { type ScheduledRestock, StockService } from '../stock/stock.service.js';
 
 export type PlaceOrderOutcome =
-  | { kind: 'placed'; orderId: string; inventoryIssue: boolean }
+  | {
+      kind: 'placed';
+      orderId: string;
+      inventoryIssue: boolean;
+      restockRequests: ScheduledRestock[];
+    }
   | { kind: 'duplicate' }
   | { kind: 'rejected'; reason: string };
 
@@ -44,7 +49,7 @@ export class OrderPlacementService {
         await manager.insert(
           Order,
           manager.create(Order, {
-            idempotencyKey: dto.idempotencyKey,
+            orderId: dto.orderId,
             terminalId: dto.terminalId,
             items: dto.items,
           }),
@@ -52,6 +57,7 @@ export class OrderPlacementService {
 
         const reservation = await this.stock.reserve(
           manager,
+          dto.orderId,
           dto.terminalId,
           dto.items,
         );
@@ -61,15 +67,16 @@ export class OrderPlacementService {
           );
         }
 
-        const { inventoryIssue } = reservation;
+        const { inventoryIssue, restockRequests } = reservation;
         if (inventoryIssue) {
-          await manager.update(Order, dto.idempotencyKey, { inventoryIssue });
+          await manager.update(Order, dto.orderId, { inventoryIssue });
         }
 
         return {
           kind: 'placed' as const,
-          orderId: dto.idempotencyKey,
+          orderId: dto.orderId,
           inventoryIssue,
+          restockRequests,
         };
       });
     } catch (error) {

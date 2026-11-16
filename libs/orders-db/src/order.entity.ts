@@ -8,7 +8,7 @@ export interface OrderItem {
 @Entity({ name: 'orders' })
 export class Order {
   @PrimaryColumn('uuid')
-  idempotencyKey: string;
+  orderId: string;
 
   @Column()
   terminalId: string;

@@ -39,7 +39,7 @@ export class OrderPlacementController {
 
     // Logged as separate JSON fields, so Loki can filter on each of them.
     const fields = {
-      idempotencyKey: message.idempotencyKey,
+      orderId: message.orderId,
       terminalId: message.terminalId,
     };
 
@@ -51,6 +51,11 @@ export class OrderPlacementController {
             { ...fields, outcome: 'placed', inventoryIssue: out.inventoryIssue },
             'order placed',
           );
+          // One line per restock, so a search for the restockRequestId
+          // finds the order that triggered it.
+          for (const restock of out.restockRequests) {
+            this.logger.log({ ...fields, ...restock }, 'restock requested');
+          }
           channel.ack(originalMsg);
           this.rabbitmqMetrics.messageSettled(ORDER_PATTERNS.PLACE, 'ack');
           break;

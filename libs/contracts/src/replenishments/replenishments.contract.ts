@@ -1,4 +1,11 @@
-import { IsInt, IsNotEmpty, IsString, IsUUID, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
 
 export const REPLENISHMENT_PATTERNS = {
   RESTOCK_REQUESTED: 'replenishment.restock_requested',
@@ -10,9 +17,19 @@ export const REPLENISHMENT_PATTERNS = {
 // interface) so the consumer can validate incoming payloads against it.
 export class RestockRequestedEvent {
   // The outbox row id. Delivery is at-least-once, so the consumer must use
-  // this to recognise and drop a message it has already handled.
+  // this to recognise and drop a message it has already handled. It is also
+  // the restock's correlation id: warehouse stores it as
+  // delivery.restockRequestId and sends it back in RestockDeliveredEvent.
   @IsUUID()
   messageId: string;
+
+  // The order whose stock reservation took the item below the reorder
+  // threshold. Only for tracing: one restock serves every later order for
+  // that item, so this names the trigger, not "the" order. Optional so
+  // messages published before this field existed still validate.
+  @IsOptional()
+  @IsUUID()
+  triggeredByOrderId?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -39,6 +56,13 @@ export class RestockDeliveredEvent {
 
   @IsUUID()
   deliveryId: string;
+
+  // The RestockRequestedEvent.messageId this delivery fulfils, so the restock
+  // can be followed end to end in the logs. Null for deliveries created
+  // before restock requests carried an id.
+  @IsOptional()
+  @IsUUID()
+  restockRequestId?: string | null;
 
   @IsString()
   @IsNotEmpty()
